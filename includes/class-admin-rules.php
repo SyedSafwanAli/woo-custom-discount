@@ -165,6 +165,15 @@ class Admin_Rules {
 
 		echo '<td class="wcd-actions">';
 
+		// The name is a link to the editor too, but a button says so plainly —
+		// changing a batch from 60% to 50% should not depend on guessing that
+		// the title is clickable.
+		printf(
+			'<a class="button button-small button-primary" href="%1$s">%2$s</a> ',
+			esc_url( Admin::url( $tab, array( 'action' => 'edit', 'rule' => $rule['id'] ) ) ),
+			esc_html__( 'Edit', 'woo-custom-discount' )
+		);
+
 		printf(
 			'<a class="button button-small" href="%1$s">%2$s</a> ',
 			esc_url( self::action_url( 'wcd_toggle_rule', $rule['id'], $tab ) ),
