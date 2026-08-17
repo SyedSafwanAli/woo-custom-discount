@@ -322,59 +322,110 @@ class Admin_Filters {
 	private static function render_bucket_editor( string $name, array $buckets, string $unit ): void {
 		$kind = $name === 'discount_buckets' ? 'discount' : 'price';
 
+		// The symbol arrives HTML-encoded ("&#8360;" for the rupee), so decode it
+		// once — escaping it again would print the entity rather than the sign.
+		$unit = html_entity_decode( $unit, ENT_QUOTES, 'UTF-8' );
+
 		printf(
 			'<p>%s</p>',
 			self::suggest_button( $kind, __( 'Suggest from my products', 'woo-custom-discount' ) )
 		);
 
-		echo '<table class="widefat striped wcd-buckets"><thead><tr>';
+		printf(
+			'<table class="widefat striped wcd-buckets" data-wcd-buckets="%s"><thead><tr>',
+			esc_attr( $name )
+		);
 		echo '<th>' . esc_html__( 'Label shown to customers', 'woo-custom-discount' ) . '</th>';
 		echo '<th>' . esc_html__( 'From', 'woo-custom-discount' ) . '</th>';
 		echo '<th>' . esc_html__( 'To', 'woo-custom-discount' ) . '</th>';
 		echo '<th>' . esc_html__( 'In the URL', 'woo-custom-discount' ) . '</th>';
-		echo '</tr></thead><tbody>';
+		echo '<th class="wcd-bucket-remove-col"><span class="screen-reader-text">' . esc_html__( 'Remove', 'woo-custom-discount' ) . '</span></th>';
+		echo '</tr></thead><tbody data-wcd-bucket-rows>';
 
-		// One spare row so a band can always be added without another click.
-		$rows = array_merge(
-			$buckets,
-			array(
-				array(
-					'key'   => '',
-					'label' => '',
-					'min'   => 0.0,
-					'max'   => 0.0,
-				),
-			)
-		);
-
-		foreach ( $rows as $index => $bucket ) {
-			$open_ended = $bucket['max'] >= ( $kind === 'discount' ? 100.0 : 99999999.0 );
-
-			printf(
-				'<tr>
-					<td><input type="text" name="%1$s[%2$d][label]" class="regular-text" value="%3$s" placeholder="%4$s">
-						<input type="hidden" name="%1$s[%2$d][key]" value="%9$s"></td>
-					<td><input type="number" name="%1$s[%2$d][min]" class="small-text" step="0.01" min="0" value="%5$s"> %6$s</td>
-					<td><input type="number" name="%1$s[%2$d][max]" class="small-text" step="0.01" min="0" value="%7$s" placeholder="%8$s"> %6$s</td>
-					<td class="wcd-bucket-key"><code>%9$s</code></td>
-				</tr>',
-				esc_attr( $name ),
-				(int) $index,
-				esc_attr( $bucket['label'] ),
-				esc_attr__( 'e.g. 50% and above', 'woo-custom-discount' ),
-				esc_attr( $bucket['label'] === '' ? '' : (string) $bucket['min'] ),
-				esc_html( $unit ),
-				esc_attr( $open_ended || $bucket['label'] === '' ? '' : (string) $bucket['max'] ),
-				esc_attr__( 'no limit', 'woo-custom-discount' ),
-				esc_attr( $bucket['key'] )
-			);
+		foreach ( $buckets as $index => $bucket ) {
+			echo self::bucket_row( $name, (string) $index, $bucket, $unit, $kind ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped when built.
 		}
 
+		// One spare row, so adding a band needs no clicks at all when only one is
+		// wanted. The Add button covers wanting several.
+		echo self::bucket_row( $name, (string) count( $buckets ), self::blank_bucket(), $unit, $kind ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped when built.
+
 		echo '</tbody></table>';
-		echo '<p class="description">' . esc_html__( 'Leave "To" empty for an open-ended band. Clear a label to delete that band.', 'woo-custom-discount' ) . '</p>';
+
+		printf(
+			'<p><button type="button" class="button" data-wcd-add-bucket="%1$s">%2$s</button></p>',
+			esc_attr( $name ),
+			esc_html__( '+ Add another band', 'woo-custom-discount' )
+		);
+
+		// The blueprint the Add button copies. __INDEX__ is replaced with a fresh
+		// number; the save routine reads the rows in order and ignores the keys,
+		// so they only have to be unique.
+		printf(
+			'<template data-wcd-bucket-template="%1$s">%2$s</template>',
+			esc_attr( $name ),
+			self::bucket_row( $name, '__INDEX__', self::blank_bucket(), $unit, $kind )
+		);
+
+		echo '<p class="description">' . esc_html__( 'Leave "To" empty for an open-ended band, such as "50% and above". A band with no label is dropped when you save.', 'woo-custom-discount' ) . '</p>';
 		echo '<p class="description">';
 		esc_html_e( 'The code on the right is what appears in the address bar. It is kept as it is when you edit a label, so links you have already shared carry on working.', 'woo-custom-discount' );
 		echo '</p>';
+	}
+
+	/**
+	 * An empty band.
+	 *
+	 * @return array{key:string,label:string,min:float,max:float}
+	 */
+	private static function blank_bucket(): array {
+		return array(
+			'key'   => '',
+			'label' => '',
+			'min'   => 0.0,
+			'max'   => 0.0,
+		);
+	}
+
+	/**
+	 * One row of the band editor.
+	 *
+	 * @param string                                                 $name   Field name.
+	 * @param string                                                 $index  Row index, or the template placeholder.
+	 * @param array{key:string,label:string,min:float,max:float}     $bucket Band values.
+	 * @param string                                                 $unit   Unit shown beside the numbers.
+	 * @param string                                                 $kind   discount or price.
+	 */
+	private static function bucket_row( string $name, string $index, array $bucket, string $unit, string $kind ): string {
+		$blank      = $bucket['label'] === '';
+		$open_ended = $bucket['max'] >= ( $kind === 'discount' ? 100.0 : 99999999.0 );
+
+		return sprintf(
+			'<tr data-wcd-bucket-row>
+				<td><input type="text" name="%1$s[%2$s][label]" class="regular-text" value="%3$s" placeholder="%4$s">
+					<input type="hidden" name="%1$s[%2$s][key]" value="%9$s"></td>
+				<td><input type="number" name="%1$s[%2$s][min]" class="small-text" step="0.01" min="0" value="%5$s"> %6$s</td>
+				<td><input type="number" name="%1$s[%2$s][max]" class="small-text" step="0.01" min="0" value="%7$s" placeholder="%8$s"> %6$s</td>
+				<td class="wcd-bucket-key">%10$s</td>
+				<td class="wcd-bucket-remove-col">
+					<button type="button" class="button-link wcd-bucket-remove" data-wcd-remove-bucket
+						aria-label="%11$s">&times;</button>
+				</td>
+			</tr>',
+			esc_attr( $name ),
+			esc_attr( $index ),
+			esc_attr( $bucket['label'] ),
+			esc_attr__( 'e.g. 50% and above', 'woo-custom-discount' ),
+			esc_attr( $blank ? '' : (string) $bucket['min'] ),
+			esc_html( $unit ),
+			esc_attr( $open_ended || $blank ? '' : (string) $bucket['max'] ),
+			esc_attr__( 'no limit', 'woo-custom-discount' ),
+			esc_attr( $bucket['key'] ),
+			$bucket['key'] !== ''
+				? '<code>' . esc_html( $bucket['key'] ) . '</code>'
+				: '<span class="wcd-bucket-key-pending">' . esc_html__( 'set on save', 'woo-custom-discount' ) . '</span>',
+			esc_attr__( 'Remove this band', 'woo-custom-discount' )
+		);
 	}
 
 	/**

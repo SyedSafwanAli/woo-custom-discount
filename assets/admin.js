@@ -22,7 +22,80 @@
 		} );
 	}
 
+	/* --------------------------------------------------------------------
+	 * Filter bands: add and remove rows without a page reload
+	 * ----------------------------------------------------------------- */
+
+	var nextIndex = Date.now();
+
+	function addBand( name ) {
+		var template = document.querySelector( '[data-wcd-bucket-template="' + name + '"]' );
+		var table = document.querySelector( '[data-wcd-buckets="' + name + '"]' );
+
+		if ( ! template || ! table ) {
+			return;
+		}
+
+		var body = table.querySelector( '[data-wcd-bucket-rows]' );
+
+		if ( ! body ) {
+			return;
+		}
+
+		// The save routine reads rows in order and ignores their keys, so the
+		// index only has to be unique — a counter is enough.
+		var html = template.innerHTML.replace( /__INDEX__/g, String( nextIndex++ ) );
+
+		body.insertAdjacentHTML( 'beforeend', html );
+
+		var added = body.lastElementChild;
+		var label = added ? added.querySelector( 'input[type="text"]' ) : null;
+
+		if ( label ) {
+			label.focus();
+		}
+	}
+
+	function bindBands() {
+		document.addEventListener( 'click', function ( event ) {
+			var add = event.target.closest( '[data-wcd-add-bucket]' );
+
+			if ( add ) {
+				event.preventDefault();
+				addBand( add.getAttribute( 'data-wcd-add-bucket' ) );
+
+				return;
+			}
+
+			var remove = event.target.closest( '[data-wcd-remove-bucket]' );
+
+			if ( ! remove ) {
+				return;
+			}
+
+			event.preventDefault();
+
+			var row = remove.closest( '[data-wcd-bucket-row]' );
+			var body = row ? row.parentNode : null;
+
+			if ( ! row || ! body ) {
+				return;
+			}
+
+			// Taking the row out of the form is what deletes the band; nothing is
+			// gone until Save, so there is no need to ask twice.
+			row.remove();
+
+			// Never leave the table with nothing to type into.
+			if ( ! body.querySelector( '[data-wcd-bucket-row]' ) ) {
+				addBand( body.closest( '[data-wcd-buckets]' ).getAttribute( 'data-wcd-buckets' ) );
+			}
+		} );
+	}
+
 	function start() {
+		bindBands();
+
 		document.querySelectorAll( '.wcd-form' ).forEach( function ( form ) {
 			if ( ! form.querySelector( '[data-wcd-scope]' ) ) {
 				return;

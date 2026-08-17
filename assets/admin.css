@@ -377,8 +377,37 @@
 }
 
 .wcd-buckets {
-	max-width: 720px;
+	max-width: 780px;
 	margin-bottom: 0.75em;
+}
+
+.wcd-buckets .wcd-bucket-key code {
+	font-size: 11.5px;
+}
+
+.wcd-buckets .wcd-bucket-key-pending {
+	font-size: 11.5px;
+	color: #8c8f94;
+	font-style: italic;
+}
+
+.wcd-buckets .wcd-bucket-remove-col {
+	width: 2.5em;
+	text-align: right;
+}
+
+.wcd-buckets button.wcd-bucket-remove {
+	padding: 0 0.35em;
+	color: #8c8f94;
+	font-size: 17px;
+	line-height: 1;
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.wcd-buckets button.wcd-bucket-remove:hover,
+.wcd-buckets button.wcd-bucket-remove:focus {
+	color: #b32d2e;
 }
 
 .wcd-dist {
