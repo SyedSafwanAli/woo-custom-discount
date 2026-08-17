@@ -105,6 +105,30 @@ class Admin_Filters {
 		echo '</p>';
 		echo '</td></tr>';
 
+		// --- Presentation ----------------------------------------------------
+		$display  = (string) Settings::get( 'filter_display', 'drawer' );
+		$displays = array(
+			'drawer' => __( 'A button that slides a panel in from the right', 'woo-custom-discount' ),
+			'panel'  => __( 'Always open, for a sidebar column', 'woo-custom-discount' ),
+			'auto'   => __( 'Open on wide screens, a drawer on narrow ones', 'woo-custom-discount' ),
+		);
+
+		echo '<tr><th scope="row">' . esc_html__( 'Appearance', 'woo-custom-discount' ) . '</th><td>';
+
+		foreach ( $displays as $key => $label ) {
+			printf(
+				'<label class="wcd-check"><input type="radio" name="filter_display" value="%1$s"%2$s> %3$s</label>',
+				esc_attr( $key ),
+				checked( $display, $key, false ),
+				esc_html( $label )
+			);
+		}
+
+		echo '<p class="description">';
+		esc_html_e( 'In drawer form, choices are ticked and then applied together, so the page reloads once instead of once per tick. The shortcode can override this per placement, e.g. [wcd_filter display="panel"].', 'woo-custom-discount' );
+		echo '</p>';
+		echo '</td></tr>';
+
 		// --- Counts ----------------------------------------------------------
 		echo '<tr><th scope="row">' . esc_html__( 'Options', 'woo-custom-discount' ) . '</th><td>';
 
@@ -339,11 +363,13 @@ class Admin_Filters {
 			: array();
 
 		$position = isset( $_POST['filter_position'] ) ? sanitize_key( wp_unslash( (string) $_POST['filter_position'] ) ) : 'none';
+		$display  = isset( $_POST['filter_display'] ) ? sanitize_key( wp_unslash( (string) $_POST['filter_display'] ) ) : 'drawer';
 
 		Settings::update(
 			array(
 				'filter_groups'     => $groups,
 				'filter_position'   => in_array( $position, array( 'none', 'above_grid' ), true ) ? $position : 'none',
+				'filter_display'    => in_array( $display, array( 'drawer', 'panel', 'auto' ), true ) ? $display : 'drawer',
 				'show_counts'       => ! empty( $_POST['show_counts'] ),
 				'hide_empty'        => ! empty( $_POST['hide_empty'] ),
 				'discount_buckets'  => self::clean_buckets( $_POST['discount_buckets'] ?? array(), 'discount' ),

@@ -1,119 +1,277 @@
 /**
- * Filter panel styling.
+ * Filter: trigger button, slide-in drawer, and sidebar panel.
  *
- * Inherits the theme's fonts and colours — the only opinionated parts are
- * layout and the checkbox mark, so it reads as part of the shop.
+ * The palette is built from the shop's own badge green (#8ba93d). A darker step
+ * is used wherever white text or a white tick sits on top, because the badge
+ * green itself is too light for that to be readable.
  *
- * Selectors here are deliberately more specific than they look like they need
- * to be. Divi styles lists as `.entry-content ul` and similar, which outranks a
- * lone class, so a plain `.wcd-filter__list { list-style: none }` loses and the
- * theme's bullets come back.
+ * Selectors are more specific than they look like they need to be: Divi styles
+ * lists as `.entry-content ul` and buttons as `.woocommerce button`, both of
+ * which outrank a lone class, so a plain reset loses and the theme wins.
  */
 
 .wcd-filter {
-	--wcd-line: rgba( 0, 0, 0, 0.12 );
-	--wcd-mark: currentColor;
+	/* Brand */
+	--wcd-green: #8ba93d;
+	--wcd-green-strong: #5f7728;
+	--wcd-green-ink: #46591d;
+	--wcd-green-soft: #f2f6e6;
 
-	/* The result count and sort dropdown around us are floated by the theme;
-	   without clearing, the panel lands beside them. */
-	clear: both;
+	/* Neutrals, biased very slightly green so they sit with the accent */
+	--wcd-ink: #1e2419;
+	--wcd-ink-2: #5c6455;
+	--wcd-ink-3: #8b9184;
+	--wcd-surface: #fff;
+	--wcd-line: #e2e5dd;
+	--wcd-line-soft: #eef0ea;
+
+	--wcd-radius: 8px;
+	--wcd-shadow: -8px 0 40px rgba( 30, 36, 25, 0.16 );
+
 	display: block;
-	width: 100%;
-	margin: 0 0 2em;
+	clear: both;
 	font-family: inherit;
+	color: var( --wcd-ink );
 }
 
-/* --- Toggle: a real button on small screens, hidden on large ------------- */
+/* ========================================================================
+   Trigger row: the button, plus the filters already applied
+   ===================================================================== */
 
-.wcd-filter .wcd-filter__toggle {
-	display: none;
-	align-items: center;
-	gap: 0.5em;
-	width: 100%;
-	padding: 0.7em 1em;
-	border: 1px solid var( --wcd-line );
-	border-radius: 4px;
-	background: transparent;
-	color: inherit;
-	font: inherit;
-	font-weight: 600;
-	cursor: pointer;
-}
-
-.wcd-filter .wcd-filter__dot {
-	width: 7px;
-	height: 7px;
-	border-radius: 50%;
-	background: currentColor;
-}
-
-/* --- Panel --------------------------------------------------------------- */
-
-.wcd-filter .wcd-filter__panel {
-	display: grid;
-	grid-template-columns: repeat( auto-fit, minmax( 11em, 1fr ) );
-	gap: 1.5em 2em;
-	padding: 1.4em 1.6em;
-	border: 1px solid var( --wcd-line );
-	border-radius: 6px;
-}
-
-.wcd-filter .wcd-filter__head {
-	grid-column: 1 / -1;
+.wcd-filter .wcd-bar {
 	display: flex;
-	align-items: baseline;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.65em 0.75em;
+	margin: 0 0 1.5em;
+}
+
+.wcd-filter button.wcd-trigger {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.55em;
+	margin: 0;
+	padding: 0.7em 1.15em;
+	border: 1px solid var( --wcd-line );
+	border-radius: 999px;
+	background: var( --wcd-surface );
+	color: var( --wcd-ink );
+	font: inherit;
+	font-size: 0.92em;
+	font-weight: 600;
+	line-height: 1;
+	letter-spacing: 0.01em;
+	text-transform: none;
+	cursor: pointer;
+	transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.wcd-filter button.wcd-trigger:hover,
+.wcd-filter button.wcd-trigger:focus-visible {
+	border-color: var( --wcd-green );
+	box-shadow: 0 0 0 3px var( --wcd-green-soft );
+}
+
+.wcd-filter .wcd-trigger__icon {
+	flex: 0 0 auto;
+	color: var( --wcd-ink-2 );
+}
+
+.wcd-filter .wcd-trigger__count {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 1.45em;
+	height: 1.45em;
+	padding: 0 0.35em;
+	border-radius: 999px;
+	background: var( --wcd-green-strong );
+	color: #fff;
+	font-size: 0.78em;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+}
+
+/* ========================================================================
+   Chips: what is currently applied
+   ===================================================================== */
+
+.wcd-filter ul.wcd-chips {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.4em;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.wcd-filter ul.wcd-chips > li {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	background: none;
+}
+
+.wcd-filter ul.wcd-chips > li::before,
+.wcd-filter ul.wcd-chips > li::marker {
+	content: none;
+	display: none;
+}
+
+.wcd-filter a.wcd-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4em;
+	padding: 0.38em 0.7em;
+	border-radius: 999px;
+	background: var( --wcd-green-soft );
+	color: var( --wcd-green-ink );
+	font-size: 0.8em;
+	font-weight: 600;
+	line-height: 1.3;
+	text-decoration: none;
+	transition: background-color 0.15s ease;
+}
+
+.wcd-filter a.wcd-chip:hover,
+.wcd-filter a.wcd-chip:focus-visible {
+	background: #e6eed3;
+	color: var( --wcd-green-ink );
+}
+
+.wcd-filter .wcd-chip__x {
+	flex: 0 0 auto;
+	width: 11px;
+	height: 11px;
+	opacity: 0.7;
+}
+
+.wcd-filter a.wcd-chip--clear {
+	background: transparent;
+	color: var( --wcd-ink-2 );
+	text-decoration: underline;
+	text-underline-offset: 2px;
+}
+
+.wcd-filter a.wcd-chip--clear:hover {
+	background: transparent;
+	color: var( --wcd-ink );
+}
+
+/* ========================================================================
+   The panel itself
+   ===================================================================== */
+
+.wcd-filter .wcd-panel {
+	background: var( --wcd-surface );
+}
+
+.wcd-filter .wcd-panel__head {
+	display: flex;
+	align-items: center;
 	justify-content: space-between;
 	gap: 1em;
-	margin: 0;
-	padding-bottom: 0.5em;
+	padding: 1.15em 1.35em;
 	border-bottom: 1px solid var( --wcd-line );
 }
 
-.wcd-filter .wcd-filter__head:empty {
-	display: none;
-}
-
-.wcd-filter .wcd-filter__title {
+.wcd-filter .wcd-panel__title {
 	margin: 0;
-	font-weight: 700;
-}
-
-.wcd-filter .wcd-filter__clear {
-	font-size: 0.85em;
-	text-decoration: underline;
-	white-space: nowrap;
-}
-
-/* --- Groups -------------------------------------------------------------- */
-
-.wcd-filter .wcd-filter__group {
-	min-width: 0;
-}
-
-.wcd-filter .wcd-filter__heading {
-	margin: 0 0 0.6em;
 	padding: 0;
-	font-size: 0.72em;
+	font-size: 1.02em;
+	font-weight: 700;
+	letter-spacing: -0.005em;
+	color: var( --wcd-ink );
+}
+
+.wcd-filter button.wcd-close {
+	display: none;
+	align-items: center;
+	justify-content: center;
+	width: 2.1em;
+	height: 2.1em;
+	margin: 0;
+	padding: 0;
+	border: 1px solid var( --wcd-line );
+	border-radius: 50%;
+	background: var( --wcd-surface );
+	color: var( --wcd-ink-2 );
+	cursor: pointer;
+	transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.wcd-filter button.wcd-close:hover,
+.wcd-filter button.wcd-close:focus-visible {
+	border-color: var( --wcd-ink-3 );
+	color: var( --wcd-ink );
+}
+
+.wcd-filter .wcd-panel__chips {
+	padding: 0.9em 1.35em 0;
+}
+
+.wcd-filter .wcd-panel__body {
+	padding: 1.35em;
+}
+
+.wcd-filter .wcd-panel__foot {
+	display: none;
+	align-items: center;
+	gap: 0.75em;
+	padding: 1em 1.35em;
+	border-top: 1px solid var( --wcd-line );
+	background: var( --wcd-surface );
+}
+
+/* ========================================================================
+   Groups and options
+   ===================================================================== */
+
+.wcd-filter .wcd-group + .wcd-group {
+	margin-top: 1.5em;
+	padding-top: 1.5em;
+	border-top: 1px solid var( --wcd-line-soft );
+}
+
+.wcd-filter .wcd-group__title {
+	margin: 0 0 0.7em;
+	padding: 0;
+	font-size: 0.68em;
 	font-weight: 700;
 	text-transform: uppercase;
-	letter-spacing: 0.12em;
-	opacity: 0.65;
+	letter-spacing: 0.13em;
+	color: var( --wcd-ink-3 );
 }
 
 /* Beat the theme's list rules: no bullets, no indent, no bullet image. */
-.wcd-filter ul.wcd-filter__list {
+.wcd-filter ul.wcd-list {
 	margin: 0;
 	padding: 0;
 	list-style: none;
 	list-style-type: none;
 	list-style-image: none;
-	/* A long group — this shop has twenty categories — would otherwise make the
-	   panel taller than the products it filters. */
-	max-height: 14.5em;
-	overflow-y: auto;
 }
 
-.wcd-filter ul.wcd-filter__list > li.wcd-filter__item {
+.wcd-filter ul.wcd-list--scroll {
+	max-height: 15em;
+	overflow-y: auto;
+	/* Room for the scrollbar so it never sits on top of the counts. */
+	padding-right: 0.4em;
+	scrollbar-width: thin;
+	scrollbar-color: var( --wcd-line ) transparent;
+}
+
+.wcd-filter ul.wcd-list--scroll::-webkit-scrollbar {
+	width: 6px;
+}
+
+.wcd-filter ul.wcd-list--scroll::-webkit-scrollbar-thumb {
+	background: var( --wcd-line );
+	border-radius: 3px;
+}
+
+.wcd-filter ul.wcd-list > li.wcd-item {
 	margin: 0;
 	padding: 0;
 	list-style: none;
@@ -121,117 +279,295 @@
 	background: none;
 }
 
-.wcd-filter ul.wcd-filter__list > li.wcd-filter__item::before,
-.wcd-filter ul.wcd-filter__list > li.wcd-filter__item::marker {
+.wcd-filter ul.wcd-list > li.wcd-item::before,
+.wcd-filter ul.wcd-list > li.wcd-item::marker {
 	content: none;
 	display: none;
 }
 
-.wcd-filter .wcd-filter__link {
+.wcd-filter a.wcd-opt {
 	display: flex;
 	align-items: center;
-	gap: 0.6em;
-	padding: 0.32em 0;
-	color: inherit;
-	text-decoration: none;
+	gap: 0.7em;
+	padding: 0.46em 0.5em;
+	margin: 0 -0.5em;
+	border-radius: 5px;
+	color: var( --wcd-ink-2 );
+	font-size: 0.93em;
 	line-height: 1.35;
+	text-decoration: none;
+	transition: background-color 0.12s ease, color 0.12s ease;
 }
 
-.wcd-filter .wcd-filter__link:hover .wcd-filter__label,
-.wcd-filter .wcd-filter__link:focus-visible .wcd-filter__label {
-	text-decoration: underline;
+.wcd-filter a.wcd-opt:hover,
+.wcd-filter a.wcd-opt:focus-visible {
+	background: var( --wcd-green-soft );
+	color: var( --wcd-ink );
 }
 
-.wcd-filter .wcd-filter__link:focus-visible {
-	outline: 2px solid currentColor;
-	outline-offset: 2px;
-	border-radius: 2px;
+.wcd-filter a.wcd-opt:focus-visible {
+	outline: 2px solid var( --wcd-green-strong );
+	outline-offset: -2px;
 }
 
-.wcd-filter .wcd-filter__box {
-	flex: 0 0 auto;
-	width: 15px;
-	height: 15px;
-	border: 1.5px solid var( --wcd-mark );
-	border-radius: 3px;
-	opacity: 0.5;
+.wcd-filter .is-on a.wcd-opt {
+	color: var( --wcd-ink );
+	font-weight: 600;
+}
+
+/* The tick is drawn, not imaged, so it stays sharp and takes the palette. */
+.wcd-filter .wcd-box {
 	position: relative;
+	flex: 0 0 auto;
+	width: 17px;
+	height: 17px;
+	border: 1.5px solid var( --wcd-line );
+	border-radius: 4px;
+	background: var( --wcd-surface );
+	transition: background-color 0.12s ease, border-color 0.12s ease;
 }
 
-.wcd-filter .is-on .wcd-filter__box {
-	opacity: 1;
-	background: var( --wcd-mark );
+.wcd-filter a.wcd-opt:hover .wcd-box {
+	border-color: var( --wcd-green );
 }
 
-/* The tick is drawn rather than imaged, so it takes the theme's colour. */
-.wcd-filter .is-on .wcd-filter__box::after {
+.wcd-filter .is-on .wcd-box {
+	background: var( --wcd-green-strong );
+	border-color: var( --wcd-green-strong );
+}
+
+.wcd-filter .is-on .wcd-box::after {
 	content: "";
 	position: absolute;
-	left: 3px;
-	top: 0;
-	width: 5px;
-	height: 9px;
+	left: 5px;
+	top: 2px;
+	width: 4.5px;
+	height: 8px;
 	border-right: 2px solid #fff;
 	border-bottom: 2px solid #fff;
 	transform: rotate( 40deg );
 }
 
-.wcd-filter .wcd-filter__label {
+.wcd-filter .wcd-opt__label {
 	flex: 1 1 auto;
 	min-width: 0;
 }
 
-.wcd-filter .is-on .wcd-filter__label {
-	font-weight: 600;
-}
-
-.wcd-filter .wcd-filter__count {
+.wcd-filter .wcd-opt__count {
 	flex: 0 0 auto;
-	font-size: 0.82em;
-	opacity: 0.5;
+	font-size: 0.85em;
+	color: var( --wcd-ink-3 );
 	font-variant-numeric: tabular-nums;
 }
 
-/* --- Stacked layout: a sidebar or widget --------------------------------- */
+/* ========================================================================
+   Buttons
+   ===================================================================== */
 
-.wcd-filter--stacked .wcd-filter__panel {
-	grid-template-columns: 1fr;
-	gap: 1.4em;
-	padding: 0;
+.wcd-filter .wcd-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0.8em 1.3em;
+	border: 1px solid transparent;
+	border-radius: 6px;
+	font: inherit;
+	font-size: 0.9em;
+	font-weight: 600;
+	line-height: 1.2;
+	text-align: center;
+	text-decoration: none;
+	cursor: pointer;
+	transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.wcd-filter button.wcd-btn--primary {
+	flex: 1 1 auto;
+	background: var( --wcd-green-strong );
+	color: #fff;
+}
+
+.wcd-filter button.wcd-btn--primary:hover,
+.wcd-filter button.wcd-btn--primary:focus-visible {
+	background: var( --wcd-green-ink );
+	color: #fff;
+}
+
+.wcd-filter a.wcd-btn--ghost {
+	flex: 0 0 auto;
+	border-color: var( --wcd-line );
+	background: var( --wcd-surface );
+	color: var( --wcd-ink-2 );
+}
+
+.wcd-filter a.wcd-btn--ghost:hover,
+.wcd-filter a.wcd-btn--ghost:focus-visible {
+	border-color: var( --wcd-ink-3 );
+	color: var( --wcd-ink );
+}
+
+/* ========================================================================
+   Sidebar panel mode
+   ===================================================================== */
+
+.wcd-filter--panel .wcd-panel {
+	border: 1px solid var( --wcd-line );
+	border-radius: var( --wcd-radius );
+}
+
+.wcd-filter .wcd-scrim {
+	display: none;
+}
+
+/* ========================================================================
+   Drawer mode — only once the script has confirmed it can run
+   ===================================================================== */
+
+/* Apply is available in every mode once the script is running, because ticking
+   is batched everywhere — a sidebar panel gets the button at its foot. */
+.wcd-filter.wcd-js .wcd-panel__foot {
+	display: flex;
+}
+
+/* Everything below is drawer geometry, and must stay scoped to the modes that
+   actually have a drawer. Applied to panel mode it would push a sidebar
+   off-canvas with no way to bring it back. */
+.wcd-filter--drawer.wcd-js .wcd-scrim,
+.wcd-filter--auto.wcd-js .wcd-scrim {
+	display: block;
+	position: fixed;
+	inset: 0;
+	z-index: 100000;
+	background: rgba( 30, 36, 25, 0.45 );
+	opacity: 0;
+	visibility: hidden;
+	transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+
+.wcd-filter--drawer.wcd-js.is-open .wcd-scrim,
+.wcd-filter--auto.wcd-js.is-open .wcd-scrim {
+	opacity: 1;
+	visibility: visible;
+}
+
+.wcd-filter--drawer.wcd-js .wcd-panel,
+.wcd-filter--auto.wcd-js .wcd-panel {
+	position: fixed;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 100001;
+	display: flex;
+	flex-direction: column;
+	width: 380px;
+	max-width: 88vw;
 	border: 0;
+	border-radius: 0;
+	box-shadow: var( --wcd-shadow );
+	transform: translateX( 100% );
+	visibility: hidden;
+	transition: transform 0.28s cubic-bezier( 0.32, 0.72, 0, 1 ), visibility 0.28s;
 }
 
-.wcd-filter--stacked .wcd-filter__head {
-	border-bottom: 0;
-	padding-bottom: 0;
+.wcd-filter--drawer.wcd-js.is-open .wcd-panel,
+.wcd-filter--auto.wcd-js.is-open .wcd-panel {
+	transform: translateX( 0 );
+	visibility: visible;
 }
 
-/* --- Small screens: collapse into a drawer ------------------------------- */
+.wcd-filter--drawer.wcd-js .wcd-panel__head,
+.wcd-filter--auto.wcd-js .wcd-panel__head {
+	flex: 0 0 auto;
+}
 
-@media ( max-width: 782px ) {
-	.wcd-filter .wcd-filter__toggle {
-		display: flex;
-	}
+.wcd-filter--drawer.wcd-js .wcd-panel__body,
+.wcd-filter--auto.wcd-js .wcd-panel__body {
+	flex: 1 1 auto;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+}
 
-	.wcd-filter .wcd-filter__panel {
+.wcd-filter--drawer.wcd-js button.wcd-close,
+.wcd-filter--auto.wcd-js button.wcd-close {
+	display: flex;
+}
+
+/* A long list has the whole drawer to scroll in, so it does not need its own. */
+.wcd-filter--drawer.wcd-js ul.wcd-list--scroll,
+.wcd-filter--auto.wcd-js ul.wcd-list--scroll {
+	max-height: none;
+	overflow: visible;
+	padding-right: 0;
+}
+
+/* Auto mode: a sidebar on wide screens, a drawer on narrow ones. */
+@media ( min-width: 981px ) {
+	.wcd-filter--auto.wcd-js .wcd-bar {
 		display: none;
-		grid-template-columns: 1fr;
-		gap: 1.4em;
-		margin-top: 0.75em;
 	}
 
-	.wcd-filter.is-open .wcd-filter__panel {
-		display: grid;
+	.wcd-filter--auto.wcd-js .wcd-scrim {
+		display: none;
+	}
+
+	.wcd-filter--auto.wcd-js .wcd-panel {
+		position: static;
+		width: auto;
+		max-width: none;
+		border: 1px solid var( --wcd-line );
+		border-radius: var( --wcd-radius );
+		box-shadow: none;
+		transform: none;
+		visibility: visible;
+	}
+
+	.wcd-filter--auto.wcd-js button.wcd-close {
+		display: none;
 	}
 }
+
+/* Stops the page behind the drawer scrolling with it. */
+html.wcd-locked,
+html.wcd-locked body {
+	overflow: hidden;
+}
+
+@media ( max-width: 480px ) {
+	.wcd-filter--drawer.wcd-js .wcd-panel,
+	.wcd-filter--auto.wcd-js .wcd-panel {
+		width: 100%;
+		max-width: 100%;
+	}
+}
+
+/* ========================================================================
+   Dark scheme
+   ===================================================================== */
 
 @media ( prefers-color-scheme: dark ) {
 	.wcd-filter {
-		--wcd-line: rgba( 255, 255, 255, 0.18 );
+		--wcd-green-soft: #232a17;
+		--wcd-green-ink: #b9d178;
+		--wcd-ink: #e8ece2;
+		--wcd-ink-2: #a9b0a1;
+		--wcd-ink-3: #7d8478;
+		--wcd-surface: #171a15;
+		--wcd-line: #2f342b;
+		--wcd-line-soft: #232720;
+		--wcd-shadow: -8px 0 40px rgba( 0, 0, 0, 0.6 );
 	}
 
-	.wcd-filter .is-on .wcd-filter__box::after {
-		border-right-color: #111;
-		border-bottom-color: #111;
+	.wcd-filter a.wcd-chip:hover {
+		background: #2c3520;
+	}
+}
+
+@media ( prefers-reduced-motion: reduce ) {
+	.wcd-filter .wcd-panel,
+	.wcd-filter .wcd-scrim,
+	.wcd-filter .wcd-btn,
+	.wcd-filter a.wcd-opt,
+	.wcd-filter button.wcd-trigger {
+		transition: none;
 	}
 }

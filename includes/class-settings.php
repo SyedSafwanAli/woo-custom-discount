@@ -73,8 +73,14 @@ class Settings {
 			'hide_empty'        => true,
 
 			// Where the filter is injected on the shop page.
-			// none | above_grid | sidebar
+			// none | above_grid
 			'filter_position'   => 'none',
+
+			// How the filter presents itself.
+			//   drawer  a button that slides a panel in from the right
+			//   panel   always-open, for a sidebar column
+			//   auto    panel on wide screens, drawer on narrow ones
+			'filter_display'    => 'drawer',
 
 			// Keep rules and settings when the plugin is deleted.
 			'purge_on_uninstall' => false,
