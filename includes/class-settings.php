@@ -45,7 +45,12 @@ class Settings {
 			'rounding'          => 'down',
 
 			// Which filter groups appear, in this order.
-			'filter_groups'     => array( 'discount', 'expiry', 'category', 'price', 'stock', 'sort' ),
+			//
+			// 'sort' is left out on purpose: the shop's own sort dropdown now
+			// carries the two new orderings, so a second sort control in the
+			// panel would only duplicate it. Add it back for a standalone
+			// shortcode placement where no dropdown exists.
+			'filter_groups'     => array( 'discount', 'expiry', 'category', 'price', 'stock' ),
 
 			// Discount buckets. Empty until the owner creates them, or the
 			// importer suggests a set based on the real discounts in the store.

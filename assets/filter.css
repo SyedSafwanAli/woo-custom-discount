@@ -1,21 +1,31 @@
 /**
  * Filter panel styling.
  *
- * Inherits the theme's fonts and colours. The only opinionated parts are layout
- * and the checkbox mark, so it reads as part of the shop.
+ * Inherits the theme's fonts and colours — the only opinionated parts are
+ * layout and the checkbox mark, so it reads as part of the shop.
+ *
+ * Selectors here are deliberately more specific than they look like they need
+ * to be. Divi styles lists as `.entry-content ul` and similar, which outranks a
+ * lone class, so a plain `.wcd-filter__list { list-style: none }` loses and the
+ * theme's bullets come back.
  */
 
 .wcd-filter {
 	--wcd-line: rgba( 0, 0, 0, 0.12 );
 	--wcd-mark: currentColor;
 
-	margin: 0 0 1.75em;
+	/* The result count and sort dropdown around us are floated by the theme;
+	   without clearing, the panel lands beside them. */
+	clear: both;
+	display: block;
+	width: 100%;
+	margin: 0 0 2em;
 	font-family: inherit;
 }
 
 /* --- Toggle: a real button on small screens, hidden on large ------------- */
 
-.wcd-filter__toggle {
+.wcd-filter .wcd-filter__toggle {
 	display: none;
 	align-items: center;
 	gap: 0.5em;
@@ -30,43 +40,59 @@
 	cursor: pointer;
 }
 
-.wcd-filter__dot {
+.wcd-filter .wcd-filter__dot {
 	width: 7px;
 	height: 7px;
 	border-radius: 50%;
 	background: currentColor;
 }
 
-.wcd-filter__panel {
-	display: block;
+/* --- Panel --------------------------------------------------------------- */
+
+.wcd-filter .wcd-filter__panel {
+	display: grid;
+	grid-template-columns: repeat( auto-fit, minmax( 11em, 1fr ) );
+	gap: 1.5em 2em;
+	padding: 1.4em 1.6em;
+	border: 1px solid var( --wcd-line );
+	border-radius: 6px;
 }
 
-/* --- Groups -------------------------------------------------------------- */
-
-.wcd-filter__head {
+.wcd-filter .wcd-filter__head {
+	grid-column: 1 / -1;
 	display: flex;
 	align-items: baseline;
 	justify-content: space-between;
 	gap: 1em;
-	margin-bottom: 0.75em;
+	margin: 0;
+	padding-bottom: 0.5em;
+	border-bottom: 1px solid var( --wcd-line );
 }
 
-.wcd-filter__title {
+.wcd-filter .wcd-filter__head:empty {
+	display: none;
+}
+
+.wcd-filter .wcd-filter__title {
 	margin: 0;
 	font-weight: 700;
 }
 
-.wcd-filter__clear {
+.wcd-filter .wcd-filter__clear {
 	font-size: 0.85em;
 	text-decoration: underline;
+	white-space: nowrap;
 }
 
-.wcd-filter__group + .wcd-filter__group {
-	margin-top: 1.35em;
+/* --- Groups -------------------------------------------------------------- */
+
+.wcd-filter .wcd-filter__group {
+	min-width: 0;
 }
 
-.wcd-filter__heading {
-	margin: 0 0 0.5em;
+.wcd-filter .wcd-filter__heading {
+	margin: 0 0 0.6em;
+	padding: 0;
 	font-size: 0.72em;
 	font-weight: 700;
 	text-transform: uppercase;
@@ -74,57 +100,75 @@
 	opacity: 0.65;
 }
 
-.wcd-filter__list {
+/* Beat the theme's list rules: no bullets, no indent, no bullet image. */
+.wcd-filter ul.wcd-filter__list {
 	margin: 0;
 	padding: 0;
 	list-style: none;
+	list-style-type: none;
+	list-style-image: none;
+	/* A long group — this shop has twenty categories — would otherwise make the
+	   panel taller than the products it filters. */
+	max-height: 14.5em;
+	overflow-y: auto;
 }
 
-.wcd-filter__item {
+.wcd-filter ul.wcd-filter__list > li.wcd-filter__item {
 	margin: 0;
+	padding: 0;
+	list-style: none;
+	list-style-type: none;
+	background: none;
 }
 
-.wcd-filter__link {
+.wcd-filter ul.wcd-filter__list > li.wcd-filter__item::before,
+.wcd-filter ul.wcd-filter__list > li.wcd-filter__item::marker {
+	content: none;
+	display: none;
+}
+
+.wcd-filter .wcd-filter__link {
 	display: flex;
 	align-items: center;
 	gap: 0.6em;
-	padding: 0.35em 0;
+	padding: 0.32em 0;
 	color: inherit;
 	text-decoration: none;
+	line-height: 1.35;
 }
 
-.wcd-filter__link:hover .wcd-filter__label,
-.wcd-filter__link:focus-visible .wcd-filter__label {
+.wcd-filter .wcd-filter__link:hover .wcd-filter__label,
+.wcd-filter .wcd-filter__link:focus-visible .wcd-filter__label {
 	text-decoration: underline;
 }
 
-.wcd-filter__link:focus-visible {
+.wcd-filter .wcd-filter__link:focus-visible {
 	outline: 2px solid currentColor;
 	outline-offset: 2px;
 	border-radius: 2px;
 }
 
-.wcd-filter__box {
+.wcd-filter .wcd-filter__box {
 	flex: 0 0 auto;
 	width: 15px;
 	height: 15px;
 	border: 1.5px solid var( --wcd-mark );
 	border-radius: 3px;
-	opacity: 0.55;
+	opacity: 0.5;
 	position: relative;
 }
 
-.is-on .wcd-filter__box {
+.wcd-filter .is-on .wcd-filter__box {
 	opacity: 1;
 	background: var( --wcd-mark );
 }
 
 /* The tick is drawn rather than imaged, so it takes the theme's colour. */
-.is-on .wcd-filter__box::after {
+.wcd-filter .is-on .wcd-filter__box::after {
 	content: "";
 	position: absolute;
 	left: 3px;
-	top: 0px;
+	top: 0;
 	width: 5px;
 	height: 9px;
 	border-right: 2px solid #fff;
@@ -132,71 +176,52 @@
 	transform: rotate( 40deg );
 }
 
-.wcd-filter__label {
+.wcd-filter .wcd-filter__label {
 	flex: 1 1 auto;
+	min-width: 0;
 }
 
-.is-on .wcd-filter__label {
+.wcd-filter .is-on .wcd-filter__label {
 	font-weight: 600;
 }
 
-.wcd-filter__count {
+.wcd-filter .wcd-filter__count {
 	flex: 0 0 auto;
 	font-size: 0.82em;
-	opacity: 0.55;
+	opacity: 0.5;
 	font-variant-numeric: tabular-nums;
 }
 
-/* --- Inline layout: groups side by side above a product grid ------------- */
+/* --- Stacked layout: a sidebar or widget --------------------------------- */
 
-.wcd-filter--inline .wcd-filter__panel {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 1.25em 2.5em;
-	padding: 1.1em 1.35em;
-	border: 1px solid var( --wcd-line );
-	border-radius: 6px;
+.wcd-filter--stacked .wcd-filter__panel {
+	grid-template-columns: 1fr;
+	gap: 1.4em;
+	padding: 0;
+	border: 0;
 }
 
-.wcd-filter--inline .wcd-filter__head {
-	flex: 1 0 100%;
-	margin: 0;
-}
-
-.wcd-filter--inline .wcd-filter__group + .wcd-filter__group {
-	margin-top: 0;
-}
-
-.wcd-filter--inline .wcd-filter__group {
-	min-width: 9.5em;
+.wcd-filter--stacked .wcd-filter__head {
+	border-bottom: 0;
+	padding-bottom: 0;
 }
 
 /* --- Small screens: collapse into a drawer ------------------------------- */
 
 @media ( max-width: 782px ) {
-	.wcd-filter__toggle {
+	.wcd-filter .wcd-filter__toggle {
 		display: flex;
 	}
 
-	.wcd-filter__panel {
+	.wcd-filter .wcd-filter__panel {
 		display: none;
+		grid-template-columns: 1fr;
+		gap: 1.4em;
 		margin-top: 0.75em;
-		padding: 1em 1.15em;
-		border: 1px solid var( --wcd-line );
-		border-radius: 6px;
 	}
 
 	.wcd-filter.is-open .wcd-filter__panel {
-		display: block;
-	}
-
-	.wcd-filter--inline .wcd-filter__panel {
-		flex-direction: column;
-		gap: 0;
-	}
-
-	.wcd-filter--inline .wcd-filter__group + .wcd-filter__group {
-		margin-top: 1.35em;
+		display: grid;
 	}
 }
 
@@ -205,7 +230,7 @@
 		--wcd-line: rgba( 255, 255, 255, 0.18 );
 	}
 
-	.is-on .wcd-filter__box::after {
+	.wcd-filter .is-on .wcd-filter__box::after {
 		border-right-color: #111;
 		border-bottom-color: #111;
 	}

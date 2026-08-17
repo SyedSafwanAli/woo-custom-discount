@@ -58,7 +58,7 @@ class Admin_Filters {
 			'category' => __( 'Category', 'woo-custom-discount' ),
 			'price'    => __( 'Price', 'woo-custom-discount' ),
 			'stock'    => __( 'In stock only', 'woo-custom-discount' ),
-			'sort'     => __( 'Sort by', 'woo-custom-discount' ),
+			'sort'     => __( 'Sort by (only if your page has no sort dropdown)', 'woo-custom-discount' ),
 		);
 
 		echo '<tr><th scope="row">' . esc_html__( 'Show these', 'woo-custom-discount' ) . '</th><td>';
@@ -71,6 +71,10 @@ class Admin_Filters {
 				esc_html( $label )
 			);
 		}
+
+		echo '<p class="description">';
+		esc_html_e( 'Two new orderings — biggest discount, and expiring soonest — are added to the shop\'s own sort dropdown, so you do not need the Sort by group here as well.', 'woo-custom-discount' );
+		echo '</p>';
 
 		echo '</td></tr>';
 

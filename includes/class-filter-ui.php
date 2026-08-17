@@ -37,7 +37,10 @@ class Filter_UI {
 		$position = (string) Settings::get( 'filter_position', 'none' );
 
 		if ( $position === 'above_grid' ) {
-			add_action( 'woocommerce_before_shop_loop', array( __CLASS__, 'output_on_shop' ), 25 );
+			// Priority 5 puts the panel ahead of the result count (20) and the
+			// sort dropdown (30). Both of those are floated by the theme, and
+			// sitting between them left the panel wrapped around them.
+			add_action( 'woocommerce_before_shop_loop', array( __CLASS__, 'output_on_shop' ), 5 );
 		}
 	}
 

@@ -44,6 +44,52 @@ class Filter_Query {
 		add_action( 'woocommerce_product_query', array( __CLASS__, 'filter_main_query' ) );
 		add_filter( 'woocommerce_shortcode_products_query', array( __CLASS__, 'filter_shortcode_query' ) );
 		add_filter( 'query_vars', array( __CLASS__, 'register_query_vars' ) );
+
+		// The shop already has a sort dropdown. Rather than stand a second sort
+		// control beside it, the two orderings this plugin makes possible are
+		// added to the one that is already there.
+		add_filter( 'woocommerce_catalog_orderby', array( __CLASS__, 'add_orderby_options' ) );
+		add_filter( 'woocommerce_default_catalog_orderby_options', array( __CLASS__, 'add_orderby_options' ) );
+		add_filter( 'woocommerce_get_catalog_ordering_args', array( __CLASS__, 'apply_orderby' ), 10, 2 );
+	}
+
+	/**
+	 * Adds our orderings to WooCommerce's sort dropdown.
+	 *
+	 * Neither was possible before: the discount and the expiry only became
+	 * sortable once this plugin started storing them as real numbers.
+	 *
+	 * @param array<string,string> $options Existing options.
+	 * @return array<string,string>
+	 */
+	public static function add_orderby_options( array $options ): array {
+		$options['wcd_discount'] = __( 'Sort by biggest discount', 'woo-custom-discount' );
+		$options['wcd_expiry']   = __( 'Sort by expiring soonest', 'woo-custom-discount' );
+
+		return $options;
+	}
+
+	/**
+	 * Turns those two choices into query arguments.
+	 *
+	 * @param array<string,mixed> $args    Ordering arguments.
+	 * @param string              $orderby Chosen ordering.
+	 * @return array<string,mixed>
+	 */
+	public static function apply_orderby( array $args, $orderby ): array {
+		if ( $orderby === 'wcd_discount' ) {
+			$args['orderby']  = 'meta_value_num';
+			$args['order']    = 'DESC';
+			$args['meta_key'] = Price_Engine::META_PERCENT;
+		}
+
+		if ( $orderby === 'wcd_expiry' ) {
+			$args['orderby']  = 'meta_value';
+			$args['order']    = 'ASC';
+			$args['meta_key'] = Price_Engine::META_EXPIRY;
+		}
+
+		return $args;
 	}
 
 	/**
