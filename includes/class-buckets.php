@@ -25,6 +25,42 @@ defined( 'ABSPATH' ) || exit;
 class Buckets {
 
 	/**
+	 * Builds a band's URL key from the range it covers.
+	 *
+	 * The key ends up in the address bar, so it has to be two things: readable,
+	 * and stable. `?discount=off20` tells someone what they are looking at, and
+	 * because it is derived from the range rather than from a row's position, it
+	 * survives editing the label or reordering the list.
+	 *
+	 * Getting that wrong is worse than it sounds: a changed key does not break
+	 * loudly, it just quietly stops filtering, so a shared or indexed link would
+	 * still load a page — showing the whole catalogue.
+	 *
+	 * @param string $kind discount or price.
+	 * @param float  $min  Lower bound.
+	 * @param float  $max  Upper bound; 0 or the open sentinel means "and above".
+	 */
+	public static function derive_key( string $kind, float $min, float $max ): string {
+		$open = $kind === 'discount' ? 100.0 : 99999999.0;
+		$low  = (int) round( $min );
+		$high = (int) round( $max );
+
+		if ( $kind === 'discount' ) {
+			if ( $max >= $open ) {
+				return 'off' . $low . 'plus';
+			}
+
+			return $low === $high ? 'off' . $low : 'off' . $low . '-' . $high;
+		}
+
+		if ( $max <= 0 || $max >= $open ) {
+			return 'from' . $low;
+		}
+
+		return $low <= 0 ? 'upto' . $high : $low . '-' . $high;
+	}
+
+	/**
 	 * The discount bands currently configured.
 	 *
 	 * @return array<int,array{key:string,label:string,min:float,max:float}>
@@ -174,7 +210,7 @@ class Buckets {
 				$rounded = (int) round( $percent );
 
 				$buckets[] = array(
-					'key'   => 'off' . $rounded,
+					'key'   => self::derive_key( 'discount', $percent, $percent ),
 					'label' => sprintf(
 						/* translators: %d: discount percentage. */
 						__( '%d%% off', 'woo-custom-discount' ),
@@ -207,7 +243,7 @@ class Buckets {
 			}
 
 			$buckets[] = array(
-				'key'   => 'r' . $start,
+				'key'   => self::derive_key( 'discount', (float) $start, $start >= 60 ? 100.0 : (float) $end ),
 				'label' => $start >= 60
 					? sprintf( __( '%d%% and above', 'woo-custom-discount' ), $start )
 					: sprintf( __( '%1$d%% – %2$d%%', 'woo-custom-discount' ), $start, $end ),
@@ -262,7 +298,7 @@ class Buckets {
 
 		foreach ( $edges as $index => $boundary ) {
 			$buckets[] = array(
-				'key'   => 'p' . $index,
+				'key'   => self::derive_key( 'price', $previous, $boundary ),
 				'label' => $previous <= 0
 					? sprintf( __( 'Under %s', 'woo-custom-discount' ), self::money( $boundary ) )
 					: sprintf( __( '%1$s – %2$s', 'woo-custom-discount' ), self::money( $previous ), self::money( $boundary ) ),
@@ -274,7 +310,7 @@ class Buckets {
 		}
 
 		$buckets[] = array(
-			'key'   => 'p' . count( $edges ),
+			'key'   => self::derive_key( 'price', $previous, 0.0 ),
 			'label' => sprintf( __( '%s and above', 'woo-custom-discount' ), self::money( $previous ) ),
 			'min'   => $previous,
 			'max'   => 0.0,

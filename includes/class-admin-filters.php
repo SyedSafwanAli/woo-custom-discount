@@ -254,6 +254,7 @@ class Admin_Filters {
 		echo '<th>' . esc_html__( 'Label shown to customers', 'woo-custom-discount' ) . '</th>';
 		echo '<th>' . esc_html__( 'From', 'woo-custom-discount' ) . '</th>';
 		echo '<th>' . esc_html__( 'To', 'woo-custom-discount' ) . '</th>';
+		echo '<th>' . esc_html__( 'In the URL', 'woo-custom-discount' ) . '</th>';
 		echo '</tr></thead><tbody>';
 
 		// One spare row so a band can always be added without another click.
@@ -274,9 +275,11 @@ class Admin_Filters {
 
 			printf(
 				'<tr>
-					<td><input type="text" name="%1$s[%2$d][label]" class="regular-text" value="%3$s" placeholder="%4$s"></td>
+					<td><input type="text" name="%1$s[%2$d][label]" class="regular-text" value="%3$s" placeholder="%4$s">
+						<input type="hidden" name="%1$s[%2$d][key]" value="%9$s"></td>
 					<td><input type="number" name="%1$s[%2$d][min]" class="small-text" step="0.01" min="0" value="%5$s"> %6$s</td>
 					<td><input type="number" name="%1$s[%2$d][max]" class="small-text" step="0.01" min="0" value="%7$s" placeholder="%8$s"> %6$s</td>
+					<td class="wcd-bucket-key"><code>%9$s</code></td>
 				</tr>',
 				esc_attr( $name ),
 				(int) $index,
@@ -285,12 +288,16 @@ class Admin_Filters {
 				esc_attr( $bucket['label'] === '' ? '' : (string) $bucket['min'] ),
 				esc_html( $unit ),
 				esc_attr( $open_ended || $bucket['label'] === '' ? '' : (string) $bucket['max'] ),
-				esc_attr__( 'no limit', 'woo-custom-discount' )
+				esc_attr__( 'no limit', 'woo-custom-discount' ),
+				esc_attr( $bucket['key'] )
 			);
 		}
 
 		echo '</tbody></table>';
 		echo '<p class="description">' . esc_html__( 'Leave "To" empty for an open-ended band. Clear a label to delete that band.', 'woo-custom-discount' ) . '</p>';
+		echo '<p class="description">';
+		esc_html_e( 'The code on the right is what appears in the address bar. It is kept as it is when you edit a label, so links you have already shared carry on working.', 'woo-custom-discount' );
+		echo '</p>';
 	}
 
 	/**
@@ -339,8 +346,8 @@ class Admin_Filters {
 				'filter_position'   => in_array( $position, array( 'none', 'above_grid' ), true ) ? $position : 'none',
 				'show_counts'       => ! empty( $_POST['show_counts'] ),
 				'hide_empty'        => ! empty( $_POST['hide_empty'] ),
-				'discount_buckets'  => self::clean_buckets( $_POST['discount_buckets'] ?? array() ),
-				'price_buckets'     => self::clean_buckets( $_POST['price_buckets'] ?? array() ),
+				'discount_buckets'  => self::clean_buckets( $_POST['discount_buckets'] ?? array(), 'discount' ),
+				'price_buckets'     => self::clean_buckets( $_POST['price_buckets'] ?? array(), 'price' ),
 				'expiry_months'     => isset( $_POST['expiry_months'] )
 					? array_values(
 						array_filter(
@@ -419,11 +426,18 @@ class Admin_Filters {
 	/**
 	 * Validates submitted bands, dropping the ones with no label.
 	 *
-	 * @param mixed $raw Submitted rows.
+	 * A band's key is what shows up in the address bar, so it is kept exactly as
+	 * submitted where one already exists. Regenerating keys on every save would
+	 * break links people had already shared — and break them silently, since the
+	 * page would still load, just without the filter applied.
+	 *
+	 * @param mixed  $raw  Submitted rows.
+	 * @param string $kind discount or price, used to derive a key for new rows.
 	 * @return array<int,array<string,mixed>>
 	 */
-	private static function clean_buckets( $raw ): array {
-		$out = array();
+	private static function clean_buckets( $raw, string $kind ): array {
+		$out  = array();
+		$used = array();
 
 		foreach ( (array) $raw as $row ) {
 			if ( ! is_array( $row ) ) {
@@ -444,8 +458,25 @@ class Admin_Filters {
 				[ $min, $max ] = array( $max, $min );
 			}
 
+			$key = sanitize_key( (string) ( $row['key'] ?? '' ) );
+
+			if ( $key === '' ) {
+				$key = Buckets::derive_key( $kind, $min, $max );
+			}
+
+			// Two bands cannot share a key, or one would be unreachable.
+			$base    = $key;
+			$attempt = 2;
+
+			while ( in_array( $key, $used, true ) ) {
+				$key = $base . '-' . $attempt;
+				++$attempt;
+			}
+
+			$used[] = $key;
+
 			$out[] = array(
-				'key'   => 'b' . count( $out ) . '_' . substr( md5( $label ), 0, 6 ),
+				'key'   => $key,
 				'label' => $label,
 				'min'   => $min,
 				'max'   => $max,

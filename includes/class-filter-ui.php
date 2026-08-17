@@ -142,13 +142,49 @@ class Filter_UI {
 	/**
 	 * Whether the page being viewed places the filter itself.
 	 *
-	 * Divi stores its layout as shortcodes inside the post content, so a filter
-	 * dropped into a Divi module is found here just the same.
+	 * Two places to look. Divi stores a page's layout as shortcodes in the post
+	 * content, so a filter dropped into a module on the page is found there. But
+	 * a Theme Builder template keeps its layout in a separate post, and that is
+	 * where a shop page built through the Theme Builder puts it — so the active
+	 * template's layouts are checked too.
 	 */
 	private static function page_has_shortcode(): bool {
 		$post = get_post();
 
-		return $post instanceof \WP_Post && has_shortcode( (string) $post->post_content, 'wcd_filter' );
+		if ( $post instanceof \WP_Post && has_shortcode( (string) $post->post_content, 'wcd_filter' ) ) {
+			return true;
+		}
+
+		return self::theme_builder_has_shortcode();
+	}
+
+	/**
+	 * Whether the Divi Theme Builder template for this request places the filter.
+	 */
+	private static function theme_builder_has_shortcode(): bool {
+		if ( ! function_exists( 'et_theme_builder_get_template_layouts' ) ) {
+			return false;
+		}
+
+		$layouts = et_theme_builder_get_template_layouts();
+
+		if ( ! is_array( $layouts ) ) {
+			return false;
+		}
+
+		foreach ( $layouts as $layout ) {
+			if ( ! is_array( $layout ) || empty( $layout['id'] ) ) {
+				continue;
+			}
+
+			$content = (string) get_post_field( 'post_content', (int) $layout['id'] );
+
+			if ( $content !== '' && has_shortcode( $content, 'wcd_filter' ) ) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**
