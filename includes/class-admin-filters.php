@@ -129,6 +129,30 @@ class Admin_Filters {
 		echo '</p>';
 		echo '</td></tr>';
 
+		// --- Button side -----------------------------------------------------
+		$align  = (string) Settings::get( 'filter_align', 'left' );
+		$aligns = array(
+			'left'   => __( 'Left', 'woo-custom-discount' ),
+			'center' => __( 'Centre', 'woo-custom-discount' ),
+			'right'  => __( 'Right', 'woo-custom-discount' ),
+		);
+
+		echo '<tr><th scope="row">' . esc_html__( 'Button side', 'woo-custom-discount' ) . '</th><td>';
+
+		foreach ( $aligns as $key => $label ) {
+			printf(
+				'<label class="wcd-check"><input type="radio" name="filter_align" value="%1$s"%2$s> %3$s</label>',
+				esc_attr( $key ),
+				checked( $align, $key, false ),
+				esc_html( $label )
+			);
+		}
+
+		echo '<p class="description">';
+		esc_html_e( 'Choose Right when the row already has a heading on the left. Applies to the drawer button only.', 'woo-custom-discount' );
+		echo '</p>';
+		echo '</td></tr>';
+
 		// --- Counts ----------------------------------------------------------
 		echo '<tr><th scope="row">' . esc_html__( 'Options', 'woo-custom-discount' ) . '</th><td>';
 
@@ -364,12 +388,14 @@ class Admin_Filters {
 
 		$position = isset( $_POST['filter_position'] ) ? sanitize_key( wp_unslash( (string) $_POST['filter_position'] ) ) : 'none';
 		$display  = isset( $_POST['filter_display'] ) ? sanitize_key( wp_unslash( (string) $_POST['filter_display'] ) ) : 'drawer';
+		$align    = isset( $_POST['filter_align'] ) ? sanitize_key( wp_unslash( (string) $_POST['filter_align'] ) ) : 'left';
 
 		Settings::update(
 			array(
 				'filter_groups'     => $groups,
 				'filter_position'   => in_array( $position, array( 'none', 'above_grid' ), true ) ? $position : 'none',
 				'filter_display'    => in_array( $display, array( 'drawer', 'panel', 'auto' ), true ) ? $display : 'drawer',
+				'filter_align'      => in_array( $align, array( 'left', 'center', 'right' ), true ) ? $align : 'left',
 				'show_counts'       => ! empty( $_POST['show_counts'] ),
 				'hide_empty'        => ! empty( $_POST['hide_empty'] ),
 				'discount_buckets'  => self::clean_buckets( $_POST['discount_buckets'] ?? array(), 'discount' ),

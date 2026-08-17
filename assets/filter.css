@@ -46,6 +46,26 @@
 	margin: 0 0 1.5em;
 }
 
+/* Which side the button sits on. Right suits a row that already carries a
+   heading on the left. */
+.wcd-filter .wcd-bar--left {
+	justify-content: flex-start;
+}
+
+.wcd-filter .wcd-bar--center {
+	justify-content: center;
+}
+
+.wcd-filter .wcd-bar--right {
+	justify-content: flex-end;
+}
+
+/* The chips can grow long; right-aligned they fill from the button leftwards
+   rather than pushing it off the row. */
+.wcd-filter .wcd-bar--right ul.wcd-chips {
+	justify-content: flex-end;
+}
+
 .wcd-filter button.wcd-trigger {
 	display: inline-flex;
 	align-items: center;

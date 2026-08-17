@@ -82,6 +82,10 @@ class Settings {
 			//   auto    panel on wide screens, drawer on narrow ones
 			'filter_display'    => 'drawer',
 
+			// Which side the trigger button sits on: left | center | right.
+			// Right suits a row that already has a heading on the left.
+			'filter_align'      => 'left',
+
 			// Keep rules and settings when the plugin is deleted.
 			'purge_on_uninstall' => false,
 		);

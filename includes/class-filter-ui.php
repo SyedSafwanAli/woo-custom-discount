@@ -113,6 +113,7 @@ class Filter_UI {
 			array(
 				'groups'  => '',
 				'display' => '',
+				'align'   => '',
 				'title'   => '',
 			),
 			(array) $atts,
@@ -127,6 +128,7 @@ class Filter_UI {
 			array(
 				'groups'  => $groups,
 				'display' => sanitize_key( (string) $atts['display'] ),
+				'align'   => sanitize_key( (string) $atts['align'] ),
 				'title'   => sanitize_text_field( (string) $atts['title'] ),
 			)
 		);
@@ -203,10 +205,15 @@ class Filter_UI {
 	public static function render( array $args = array() ): string {
 		$enabled = $args['groups'] ?? (array) Settings::get( 'filter_groups', array() );
 		$display = (string) ( $args['display'] ?? '' );
+		$align   = (string) ( $args['align'] ?? '' );
 		$title   = (string) ( $args['title'] ?? '' );
 
 		if ( ! in_array( $display, array( 'drawer', 'panel', 'auto' ), true ) ) {
 			$display = (string) Settings::get( 'filter_display', 'drawer' );
+		}
+
+		if ( ! in_array( $align, array( 'left', 'center', 'right' ), true ) ) {
+			$align = (string) Settings::get( 'filter_align', 'left' );
 		}
 
 		$groups = array();
@@ -241,19 +248,26 @@ class Filter_UI {
 		<div class="<?php echo esc_attr( implode( ' ', $classes ) ); ?>" data-wcd-filter data-mode="<?php echo esc_attr( $display ); ?>">
 
 			<?php if ( $display !== 'panel' ) : ?>
-				<div class="wcd-bar">
-					<button type="button" class="wcd-trigger" data-wcd-open
-						aria-expanded="false" aria-controls="<?php echo esc_attr( $id ); ?>">
-						<?php echo self::icon_sliders(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- static markup. ?>
-						<span class="wcd-trigger__text">
-							<?php echo esc_html( $title !== '' ? $title : __( 'Filter', 'woo-custom-discount' ) ); ?>
-						</span>
-						<?php if ( $active > 0 ) : ?>
-							<span class="wcd-trigger__count"><?php echo esc_html( (string) $active ); ?></span>
-						<?php endif; ?>
-					</button>
+				<div class="wcd-bar wcd-bar--<?php echo esc_attr( $align ); ?>">
+					<?php
+					$trigger = sprintf(
+						'<button type="button" class="wcd-trigger" data-wcd-open aria-expanded="false" aria-controls="%1$s">%2$s<span class="wcd-trigger__text">%3$s</span>%4$s</button>',
+						esc_attr( $id ),
+						self::icon_sliders(),
+						esc_html( $title !== '' ? $title : __( 'Filter', 'woo-custom-discount' ) ),
+						$active > 0 ? '<span class="wcd-trigger__count">' . esc_html( (string) $active ) . '</span>' : ''
+					);
 
-					<?php echo self::chips_html( $chips ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped when built. ?>
+					// Right-aligned, the button belongs at the far right with the
+					// chips to its left. Swapping the markup rather than nudging
+					// it with CSS `order` keeps tab order matching what is on
+					// screen.
+					$parts = $align === 'right'
+						? array( self::chips_html( $chips ), $trigger )
+						: array( $trigger, self::chips_html( $chips ) );
+
+					echo implode( '', $parts ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped when built.
+					?>
 				</div>
 			<?php endif; ?>
 
