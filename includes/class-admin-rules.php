@@ -62,23 +62,27 @@ class Admin_Rules {
 		$is_batch = $type === Rules::TYPE_BATCH;
 		$tab     = self::tab( $type );
 
+		echo '<div class="wcd-toolbar">';
+
 		echo '<p class="wcd-intro">';
 
 		if ( $is_batch ) {
-			esc_html_e( 'A batch groups products that share an expiry month and a discount. When the month passes, the discount ends and the products are hidden from the shop.', 'woo-custom-discount' );
+			esc_html_e( 'Stock that is running out of shelf life. Each batch has one expiry month and one discount. Once the month passes, the discount stops and the products are hidden — nothing is deleted, so it is all reversible.', 'woo-custom-discount' );
 		} else {
-			esc_html_e( 'A campaign is an ordinary discount. It can cover the whole store, some categories, or a list of products. When it ends the discount stops, but the products carry on selling as normal.', 'woo-custom-discount' );
+			esc_html_e( 'Ordinary discounts — a sale, a bundle offer, a blanket percentage. When a campaign ends the discount stops, but the products stay in the shop. Discounts never add up: the most specific rule wins.', 'woo-custom-discount' );
 		}
 
 		echo '</p>';
 
 		printf(
-			'<p><a class="button button-primary" href="%1$s">%2$s</a></p>',
+			'<a class="button button-primary button-hero wcd-add" href="%1$s">%2$s</a>',
 			esc_url( Admin::url( $tab, array( 'action' => 'new' ) ) ),
 			$is_batch
 				? esc_html__( 'Add expiry batch', 'woo-custom-discount' )
 				: esc_html__( 'Add campaign', 'woo-custom-discount' )
 		);
+
+		echo '</div>';
 
 		if ( $rules === array() ) {
 			echo '<div class="wcd-empty"><p>';
@@ -192,6 +196,11 @@ class Admin_Rules {
 
 	/**
 	 * The add/edit form.
+	 *
+	 * Grouped into sections rather than presented as one long column of
+	 * unrelated fields, and the fields that do not apply to the chosen scope are
+	 * hidden rather than labelled "used only when…". Someone else has to be able
+	 * to change a discount here without being walked through it.
 	 */
 	private static function render_editor( string $type, int $id ): void {
 		$rule     = $id ? Rules::get( $id ) : null;
@@ -208,11 +217,32 @@ class Admin_Rules {
 			return $rule !== null ? $rule[ $key ] : $fallback;
 		};
 
-		echo '<h2>';
-		echo $id
-			? esc_html__( 'Edit', 'woo-custom-discount' )
-			: ( $is_batch ? esc_html__( 'New expiry batch', 'woo-custom-discount' ) : esc_html__( 'New campaign', 'woo-custom-discount' ) );
+		// --- Heading and the way back ----------------------------------------
+		printf(
+			'<p class="wcd-breadcrumb"><a href="%1$s">&larr; %2$s</a></p>',
+			esc_url( Admin::url( $tab ) ),
+			$is_batch
+				? esc_html__( 'All expiry batches', 'woo-custom-discount' )
+				: esc_html__( 'All campaigns', 'woo-custom-discount' )
+		);
+
+		echo '<h2 class="wcd-editor-title">';
+
+		if ( $id ) {
+			printf(
+				/* translators: %s: rule name. */
+				esc_html__( 'Editing “%s”', 'woo-custom-discount' ),
+				esc_html( (string) $value( 'title' ) )
+			);
+		} else {
+			echo $is_batch
+				? esc_html__( 'New expiry batch', 'woo-custom-discount' )
+				: esc_html__( 'New campaign', 'woo-custom-discount' );
+		}
+
 		echo '</h2>';
+
+		self::render_explainer( $is_batch );
 
 		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" class="wcd-form">';
 		wp_nonce_field( 'wcd_save_rule' );
@@ -220,9 +250,11 @@ class Admin_Rules {
 		printf( '<input type="hidden" name="type" value="%s">', esc_attr( $type ) );
 		printf( '<input type="hidden" name="rule" value="%d">', (int) $id );
 
-		echo '<table class="form-table" role="presentation"><tbody>';
+		// ==================================================================
+		// 1. The basics
+		// ==================================================================
+		self::open_section( __( 'The basics', 'woo-custom-discount' ) );
 
-		// --- Name ------------------------------------------------------------
 		self::field(
 			__( 'Name', 'woo-custom-discount' ),
 			sprintf(
@@ -230,64 +262,133 @@ class Admin_Rules {
 				esc_attr( (string) $value( 'title' ) )
 			),
 			$is_batch
-				? __( 'Something you will recognise, such as "Expiry August 2026".', 'woo-custom-discount' )
-				: __( 'Something you will recognise, such as "Ramzan sale".', 'woo-custom-discount' )
+				? __( 'Only you see this. Naming it after the month — “Expiry August 2026” — makes the list easy to scan.', 'woo-custom-discount' )
+				: __( 'Only you see this. Something like “Ramzan sale” or “Bundle offer”.', 'woo-custom-discount' )
 		);
 
-		// --- Discount --------------------------------------------------------
 		self::field(
 			__( 'Discount', 'woo-custom-discount' ),
 			sprintf(
-				'<input type="number" name="discount_percent" class="small-text" min="0" max="100" step="0.01" value="%s"> %%',
+				'<span class="wcd-input-suffix"><input type="number" name="discount_percent" class="small-text" min="0" max="100" step="0.01" value="%s" required><span>%%</span></span>',
 				esc_attr( (string) $value( 'discount_percent', '' ) )
 			),
-			__( 'Taken off the regular price. Rounded down, so the customer never pays a part-rupee.', 'woo-custom-discount' )
+			__( 'Taken off the regular price, and rounded down — 6,995 less 60% becomes 2,798, never 2,798.50.', 'woo-custom-discount' )
 		);
 
+		self::close_section();
+
 		if ( $is_batch ) {
-			// --- Expiry month ------------------------------------------------
+			// ==============================================================
+			// 2. When the stock expires
+			// ==============================================================
+			self::open_section(
+				__( 'When this stock expires', 'woo-custom-discount' ),
+				__( 'Pick the month printed on the packaging. The batch runs to the last moment of it.', 'woo-custom-discount' )
+			);
+
+			$expiry_ym = (string) $value( 'expiry_ym', '' );
+
 			self::field(
 				__( 'Expires', 'woo-custom-discount' ),
-				self::month_input( (string) $value( 'expiry_ym', '' ) ),
-				__( 'Only the month matters — packaging is printed as 08/2026, so the batch runs to the last day of that month.', 'woo-custom-discount' )
+				self::month_input( $expiry_ym ),
+				self::expiry_note( $expiry_ym )
 			);
+
+			self::close_section();
+
+			// ==============================================================
+			// 3. What is in the batch
+			// ==============================================================
+			$in_batch = (array) $value( 'products', array() );
+
+			self::open_section(
+				__( 'Which products', 'woo-custom-discount' ),
+				count( $in_batch ) > 0
+					? sprintf(
+						/* translators: %d: number of products. */
+						(string) _n( '%d product is in this batch.', '%d products are in this batch.', count( $in_batch ), 'woo-custom-discount' ),
+						count( $in_batch )
+					)
+					: (string) __( 'Nothing in it yet. A batch with no products does nothing.', 'woo-custom-discount' )
+			);
+
+			self::field(
+				__( 'Products', 'woo-custom-discount' ),
+				self::product_select( 'products', $in_batch ),
+				__( 'Start typing a product name to find it. Put a product in only one batch — if you hold two expiry dates for it, use the earlier one.', 'woo-custom-discount' )
+			);
+
+			self::close_section();
 		} else {
-			// --- Scope -------------------------------------------------------
+			// ==============================================================
+			// 2. Who it applies to
+			// ==============================================================
+			self::open_section(
+				__( 'Which products', 'woo-custom-discount' ),
+				__( 'A product’s own campaign beats one on its category, which beats a store-wide one. Discounts never add up — a product on 60% does not also collect a store-wide 10%.', 'woo-custom-discount' )
+			);
+
 			$scope = (string) $value( 'scope', Rules::SCOPE_PRODUCTS );
 
-			$options = array(
-				Rules::SCOPE_ALL        => __( 'Every product in the store', 'woo-custom-discount' ),
-				Rules::SCOPE_CATEGORIES => __( 'Chosen categories', 'woo-custom-discount' ),
-				Rules::SCOPE_PRODUCTS   => __( 'Chosen products', 'woo-custom-discount' ),
+			$scopes = array(
+				Rules::SCOPE_ALL        => array(
+					__( 'Every product in the store', 'woo-custom-discount' ),
+					__( 'A blanket discount. Anything listed under “Never include” below is left out.', 'woo-custom-discount' ),
+				),
+				Rules::SCOPE_CATEGORIES => array(
+					__( 'Chosen categories', 'woo-custom-discount' ),
+					__( 'Products added to those categories later are picked up automatically.', 'woo-custom-discount' ),
+				),
+				Rules::SCOPE_PRODUCTS   => array(
+					__( 'Chosen products', 'woo-custom-discount' ),
+					__( 'A fixed list you pick yourself.', 'woo-custom-discount' ),
+				),
 			);
 
-			$select = '<select name="scope">';
+			$radios = '';
 
-			foreach ( $options as $key => $label ) {
-				$select .= sprintf(
-					'<option value="%1$s"%2$s>%3$s</option>',
+			foreach ( $scopes as $key => [ $label, $hint ] ) {
+				$radios .= sprintf(
+					'<label class="wcd-radio"><input type="radio" name="scope" value="%1$s"%2$s data-wcd-scope><span><strong>%3$s</strong><em>%4$s</em></span></label>',
 					esc_attr( $key ),
-					selected( $scope, $key, false ),
-					esc_html( $label )
+					checked( $scope, $key, false ),
+					esc_html( $label ),
+					esc_html( $hint )
 				);
 			}
 
-			$select .= '</select>';
+			self::field( __( 'Applies to', 'woo-custom-discount' ), '<div class="wcd-radios">' . $radios . '</div>' );
 
-			self::field(
-				__( 'Applies to', 'woo-custom-discount' ),
-				$select,
-				__( 'A product with its own campaign beats a category one, which beats a store-wide one. Discounts never add up.', 'woo-custom-discount' )
-			);
-
-			// --- Categories --------------------------------------------------
 			self::field(
 				__( 'Categories', 'woo-custom-discount' ),
 				self::category_select( (array) $value( 'categories', array() ) ),
-				__( 'Used only when "Chosen categories" is selected above.', 'woo-custom-discount' )
+				'',
+				array( 'data-wcd-show-for' => Rules::SCOPE_CATEGORIES )
 			);
 
-			// --- End date ----------------------------------------------------
+			self::field(
+				__( 'Products', 'woo-custom-discount' ),
+				self::product_select( 'products', (array) $value( 'products', array() ) ),
+				__( 'Start typing a product name to find it.', 'woo-custom-discount' ),
+				array( 'data-wcd-show-for' => Rules::SCOPE_PRODUCTS )
+			);
+
+			self::field(
+				__( 'Never include', 'woo-custom-discount' ),
+				self::product_select( 'excluded', (array) $value( 'excluded', array() ) ),
+				__( 'Products this campaign must skip, even when it covers the whole store. Use it for anything that should stay at full price.', 'woo-custom-discount' )
+			);
+
+			self::close_section();
+
+			// ==============================================================
+			// 3. When it ends
+			// ==============================================================
+			self::open_section(
+				__( 'When it ends', 'woo-custom-discount' ),
+				__( 'Ending a campaign removes the discount. The products carry on selling as normal — nothing is hidden.', 'woo-custom-discount' )
+			);
+
 			$ends = (string) $value( 'ends_at', '' );
 
 			self::field(
@@ -296,71 +397,142 @@ class Admin_Rules {
 					'<input type="datetime-local" name="ends_at" value="%s">',
 					esc_attr( $ends !== '' ? gmdate( 'Y-m-d\TH:i', (int) strtotime( $ends ) ) : '' )
 				),
-				__( 'Leave empty to run until you pause it. With an end date, the countdown has something to count to.', 'woo-custom-discount' )
+				__( 'Leave it empty to run until you pause it. A countdown needs a date here to count towards.', 'woo-custom-discount' )
 			);
+
+			self::close_section();
 		}
 
-		// --- Products --------------------------------------------------------
-		self::field(
-			__( 'Products', 'woo-custom-discount' ),
-			self::product_select( 'products', (array) $value( 'products', array() ) ),
-			$is_batch
-				? __( 'The products in this batch.', 'woo-custom-discount' )
-				: __( 'Used only when "Chosen products" is selected above.', 'woo-custom-discount' )
-		);
+		// ==================================================================
+		// Last: what shoppers see, and whether it is live
+		// ==================================================================
+		self::open_section( __( 'Display and status', 'woo-custom-discount' ) );
 
-		if ( ! $is_batch ) {
-			// --- Exclusions --------------------------------------------------
-			self::field(
-				__( 'Never include', 'woo-custom-discount' ),
-				self::product_select( 'excluded', (array) $value( 'excluded', array() ) ),
-				__( 'Products this campaign must skip, even a store-wide one. Useful for anything that should stay at full price.', 'woo-custom-discount' )
-			);
-		}
-
-		// --- Countdown -------------------------------------------------------
 		self::field(
 			__( 'Countdown', 'woo-custom-discount' ),
 			sprintf(
-				'<label><input type="checkbox" name="countdown_enabled" value="1"%s> %s</label>',
+				'<label class="wcd-switch"><input type="checkbox" name="countdown_enabled" value="1"%s> %s</label>',
 				checked( (bool) $value( 'countdown_enabled', false ), true, false ),
 				esc_html__( 'Show a countdown on these products', 'woo-custom-discount' )
 			),
 			$is_batch
-				? __( 'Counts down to the end of the expiry month.', 'woo-custom-discount' )
-				: __( 'Needs an end date above, otherwise there is nothing to count to.', 'woo-custom-discount' )
+				? __( 'Counts down to the end of the expiry month, on the shop grid and the product page.', 'woo-custom-discount' )
+				: __( 'Needs an end date above, otherwise there is nothing to count towards.', 'woo-custom-discount' )
 		);
 
-		// --- Active ----------------------------------------------------------
 		self::field(
 			__( 'Status', 'woo-custom-discount' ),
 			sprintf(
-				'<label><input type="checkbox" name="enabled" value="1"%s> %s</label>',
+				'<label class="wcd-switch"><input type="checkbox" name="enabled" value="1"%s> %s</label>',
 				checked( (bool) $value( 'enabled', true ), true, false ),
 				esc_html__( 'Active', 'woo-custom-discount' )
 			),
-			__( 'Pausing a rule puts its products back to their normal price.', 'woo-custom-discount' )
+			__( 'Pausing puts these products back to their normal price and keeps everything you set here, so you can switch it on again later.', 'woo-custom-discount' )
 		);
 
-		echo '</tbody></table>';
+		self::close_section();
 
-		submit_button( __( 'Save', 'woo-custom-discount' ) );
-
+		echo '<p class="wcd-form-actions">';
+		submit_button( __( 'Save', 'woo-custom-discount' ), 'primary', 'submit', false );
 		printf(
-			'<a class="button button-secondary" href="%1$s">%2$s</a>',
+			' <a class="button button-secondary" href="%1$s">%2$s</a>',
 			esc_url( Admin::url( $tab ) ),
 			esc_html__( 'Cancel', 'woo-custom-discount' )
 		);
+		echo '</p>';
+
+		echo '<p class="description">' . esc_html__( 'Saving applies the prices straight away. There is no second step.', 'woo-custom-discount' ) . '</p>';
 
 		echo '</form>';
 	}
 
 	/**
-	 * A form-table row.
+	 * The short "what am I looking at" panel above the form.
 	 */
-	private static function field( string $label, string $control, string $help = '' ): void {
+	private static function render_explainer( bool $is_batch ): void {
+		echo '<div class="wcd-explainer">';
+
+		if ( $is_batch ) {
+			echo '<p><strong>' . esc_html__( 'An expiry batch is for stock that is running out of shelf life.', 'woo-custom-discount' ) . '</strong></p>';
+			echo '<ul>';
+			echo '<li>' . esc_html__( 'One expiry month and one discount, shared by every product you put in it.', 'woo-custom-discount' ) . '</li>';
+			echo '<li>' . esc_html__( 'Once the month passes, the discount stops and the products are hidden from the shop.', 'woo-custom-discount' ) . '</li>';
+			echo '<li>' . esc_html__( 'A product in a batch is skipped by every campaign, including a store-wide one.', 'woo-custom-discount' ) . '</li>';
+			echo '<li>' . esc_html__( 'Nothing is deleted. Pausing the batch, or clearing the hiding setting, brings the products straight back.', 'woo-custom-discount' ) . '</li>';
+			echo '</ul>';
+		} else {
+			echo '<p><strong>' . esc_html__( 'A campaign is an ordinary discount — a sale, a bundle offer, a blanket percentage.', 'woo-custom-discount' ) . '</strong></p>';
+			echo '<ul>';
+			echo '<li>' . esc_html__( 'It can cover the whole store, some categories, or a list of products you choose.', 'woo-custom-discount' ) . '</li>';
+			echo '<li>' . esc_html__( 'When it ends the discount stops, but the products stay in the shop.', 'woo-custom-discount' ) . '</li>';
+			echo '<li>' . esc_html__( 'For short-dated stock you want cleared and then hidden, use an expiry batch instead.', 'woo-custom-discount' ) . '</li>';
+			echo '</ul>';
+		}
+
+		echo '</div>';
+	}
+
+	/**
+	 * Spells out the exact moment a batch stops.
+	 */
+	private static function expiry_note( string $expiry_ym ): string {
+		if ( $expiry_ym === '' ) {
+			return (string) __( 'Packaging is printed as 08/2026, so only the month is asked for.', 'woo-custom-discount' );
+		}
+
+		$end = Rules::expiry_end_timestamp( $expiry_ym );
+
+		if ( $end === null ) {
+			return '';
+		}
+
+		if ( $end <= time() ) {
+			return (string) __( 'This month has already passed, so these products are treated as expired.', 'woo-custom-discount' );
+		}
+
+		return sprintf(
+			/* translators: 1: date and time, 2: human-readable time remaining. */
+			(string) __( 'Runs until %1$s — %2$s from now.', 'woo-custom-discount' ),
+			(string) wp_date( 'j F Y, H:i', $end ),
+			human_time_diff( time(), $end )
+		);
+	}
+
+	/**
+	 * Opens a titled group of fields.
+	 */
+	private static function open_section( string $title, string $description = '' ): void {
 		printf(
-			'<tr><th scope="row">%1$s</th><td>%2$s%3$s</td></tr>',
+			'<div class="wcd-section"><div class="wcd-section__head"><h3>%1$s</h3>%2$s</div><table class="form-table" role="presentation"><tbody>',
+			esc_html( $title ),
+			$description !== '' ? '<p>' . esc_html( $description ) . '</p>' : ''
+		);
+	}
+
+	/**
+	 * Closes it.
+	 */
+	private static function close_section(): void {
+		echo '</tbody></table></div>';
+	}
+
+	/**
+	 * A form-table row.
+	 *
+	 * @param array<string,string> $row_attrs Extra attributes for the row, used
+	 *                                        to mark fields that only apply to
+	 *                                        one scope.
+	 */
+	private static function field( string $label, string $control, string $help = '', array $row_attrs = array() ): void {
+		$attrs = '';
+
+		foreach ( $row_attrs as $name => $val ) {
+			$attrs .= sprintf( ' %s="%s"', esc_attr( $name ), esc_attr( $val ) );
+		}
+
+		printf(
+			'<tr%1$s><th scope="row">%2$s</th><td>%3$s%4$s</td></tr>',
+			$attrs,
 			esc_html( $label ),
 			$control,
 			$help !== '' ? '<p class="description">' . esc_html( $help ) . '</p>' : ''
@@ -406,8 +578,10 @@ class Admin_Rules {
 	 * @param int[] $selected Chosen product IDs.
 	 */
 	private static function product_select( string $name, array $selected ): string {
+		// Full width rather than a fixed 32em: these product names run long, and
+		// a fixed width clipped them mid-word with no way to read the rest.
 		$html = sprintf(
-			'<select class="wc-product-search" multiple="multiple" style="width:32em" name="%1$s[]" data-placeholder="%2$s" data-action="woocommerce_json_search_products_and_variations">',
+			'<select class="wc-product-search wcd-select" multiple="multiple" name="%1$s[]" data-placeholder="%2$s" data-action="woocommerce_json_search_products_and_variations">',
 			esc_attr( $name ),
 			esc_attr__( 'Search for a product…', 'woo-custom-discount' )
 		);
@@ -447,7 +621,7 @@ class Admin_Rules {
 			return '<p class="description">' . esc_html__( 'No product categories found.', 'woo-custom-discount' ) . '</p>';
 		}
 
-		$html = '<select name="categories[]" multiple="multiple" size="8" style="width:32em">';
+		$html = '<select name="categories[]" class="wcd-select-plain" multiple="multiple" size="10">';
 
 		foreach ( $terms as $term ) {
 			$html .= sprintf(

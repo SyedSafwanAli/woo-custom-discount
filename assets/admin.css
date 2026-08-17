@@ -5,11 +5,216 @@
 
 .wcd-admin .wcd-intro {
 	max-width: 46em;
+	margin: 0;
 	font-size: 14px;
+	line-height: 1.6;
 }
 
 .wcd-tabs {
 	margin-bottom: 1.5em;
+}
+
+/* --- List toolbar: what this tab is for, and the one action -------------- */
+
+.wcd-admin .wcd-toolbar {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 2em;
+	flex-wrap: wrap;
+	margin-bottom: 1.5em;
+}
+
+.wcd-admin .wcd-add {
+	flex: 0 0 auto;
+}
+
+/* --- Editor ------------------------------------------------------------- */
+
+.wcd-admin .wcd-breadcrumb {
+	margin: 0 0 0.25em;
+	font-size: 13px;
+}
+
+.wcd-admin .wcd-editor-title {
+	margin: 0 0 1em;
+	font-size: 1.4em;
+	font-weight: 600;
+}
+
+/* The "what am I looking at" panel. Green rail rather than a full tint, so it
+   reads as guidance and not as a warning. */
+.wcd-admin .wcd-explainer {
+	max-width: 46em;
+	margin: 0 0 1.75em;
+	padding: 1em 1.25em;
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-left: 3px solid #8ba93d;
+	border-radius: 3px;
+}
+
+.wcd-admin .wcd-explainer p {
+	margin: 0 0 0.5em;
+	font-size: 14px;
+}
+
+.wcd-admin .wcd-explainer ul {
+	margin: 0;
+	padding-left: 1.3em;
+	font-size: 13.5px;
+	color: #50575e;
+}
+
+.wcd-admin .wcd-explainer li {
+	margin-bottom: 0.3em;
+}
+
+.wcd-admin .wcd-explainer li:last-child {
+	margin-bottom: 0;
+}
+
+/* --- Sections: the form reads as groups, not one long column ------------- */
+
+.wcd-admin .wcd-section {
+	max-width: 52em;
+	margin: 0 0 1.5em;
+	padding: 0 1.5em 0.75em;
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+}
+
+.wcd-admin .wcd-section__head {
+	padding: 1.1em 0 0.35em;
+	border-bottom: 1px solid #f0f0f1;
+}
+
+.wcd-admin .wcd-section__head h3 {
+	margin: 0;
+	font-size: 14px;
+	font-weight: 600;
+}
+
+.wcd-admin .wcd-section__head p {
+	margin: 0.4em 0 0;
+	font-size: 13px;
+	color: #646970;
+	max-width: 44em;
+}
+
+.wcd-admin .wcd-section .form-table {
+	margin: 0;
+}
+
+.wcd-admin .wcd-section .form-table th {
+	width: 150px;
+	padding-left: 0;
+	font-weight: 600;
+}
+
+.wcd-admin .wcd-section .form-table td {
+	padding-right: 0;
+}
+
+.wcd-admin .wcd-section .description {
+	max-width: 42em;
+}
+
+/* --- Scope radios, each with its own one-line explanation ---------------- */
+
+.wcd-admin .wcd-radios {
+	display: flex;
+	flex-direction: column;
+	gap: 0.15em;
+}
+
+.wcd-admin label.wcd-radio {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.6em;
+	padding: 0.55em 0.7em;
+	border: 1px solid transparent;
+	border-radius: 4px;
+	cursor: pointer;
+}
+
+.wcd-admin label.wcd-radio:hover {
+	background: #f6f7f7;
+}
+
+.wcd-admin label.wcd-radio input {
+	margin: 0.25em 0 0;
+}
+
+.wcd-admin label.wcd-radio span {
+	display: flex;
+	flex-direction: column;
+	gap: 0.1em;
+}
+
+.wcd-admin label.wcd-radio strong {
+	font-weight: 600;
+}
+
+.wcd-admin label.wcd-radio em {
+	font-style: normal;
+	font-size: 12.5px;
+	color: #646970;
+}
+
+.wcd-admin label.wcd-radio:has( input:checked ) {
+	background: #f6f8ef;
+	border-color: #cbd9a2;
+}
+
+.wcd-admin label.wcd-switch {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.45em;
+	font-weight: 500;
+}
+
+.wcd-admin .wcd-input-suffix {
+	display: inline-flex;
+	align-items: baseline;
+	gap: 0.35em;
+}
+
+/* --- Selects: long product names must not be clipped -------------------- */
+
+.wcd-admin .wcd-section .select2-container,
+.wcd-admin select.wcd-select-plain {
+	width: 100% !important;
+	max-width: 40em;
+}
+
+/* A seventeen-item exclusion list was taller than the rest of the form put
+   together, so the box scrolls instead of growing without limit. */
+.wcd-admin .select2-container .select2-selection--multiple {
+	max-height: 13em;
+	overflow-y: auto;
+}
+
+/* Ellipsis rather than a hard cut, so a long name is recognisable. */
+.wcd-admin .select2-container .select2-selection__choice {
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.wcd-admin select.wcd-select-plain {
+	max-height: 14em;
+}
+
+.wcd-admin .wcd-form-actions {
+	max-width: 52em;
+	margin: 1.5em 0 0.5em;
+}
+
+.wcd-admin .wcd-form > .description {
+	max-width: 52em;
 }
 
 /* --- Status cards --------------------------------------------------------- */

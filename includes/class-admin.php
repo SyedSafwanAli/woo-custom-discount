@@ -103,6 +103,7 @@ class Admin {
 		wp_enqueue_style( 'woocommerce_admin_styles' );
 		wp_enqueue_script( 'wc-enhanced-select' );
 		wp_enqueue_style( 'wcd-admin', WCD_URL . 'assets/admin.css', array(), WCD_VERSION );
+		wp_enqueue_script( 'wcd-admin', WCD_URL . 'assets/admin.js', array(), WCD_VERSION, true );
 	}
 
 	/**
