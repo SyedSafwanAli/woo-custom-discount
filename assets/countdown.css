@@ -126,12 +126,7 @@
 	font-weight: 600;
 }
 
-@media ( prefers-color-scheme: dark ) {
-	.wcd-countdown {
-		--wcd-border: rgba( 255, 255, 255, 0.16 );
-	}
-
-	.wcd-countdown__unit {
-		background: rgba( 255, 255, 255, 0.06 );
-	}
-}
+/* No `prefers-color-scheme` block on purpose — the shop is a light theme, and
+ * following the visitor's operating system would show a dark countdown to anyone
+ * browsing in dark mode, on otherwise light pages. Override the variables from
+ * the theme if a dark mode is ever added. */

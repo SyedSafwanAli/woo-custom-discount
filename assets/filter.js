@@ -16,13 +16,15 @@
 	var config = window.wcdFilter || {};
 	var strings = config.strings || {};
 
+	var focusable = 'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
 	/**
 	 * Reads the options currently ticked, grouped by parameter name.
 	 */
-	function collect( root ) {
+	function collect( scope ) {
 		var groups = {};
 
-		root.querySelectorAll( '.wcd-item.is-on > .wcd-opt' ).forEach( function ( option ) {
+		scope.querySelectorAll( '.wcd-item.is-on > .wcd-opt' ).forEach( function ( option ) {
 			var group = option.getAttribute( 'data-group' );
 			var value = option.getAttribute( 'data-value' );
 
@@ -40,16 +42,12 @@
 		return groups;
 	}
 
-	function countSelected( root ) {
-		return root.querySelectorAll( '.wcd-item.is-on' ).length;
-	}
-
 	/**
 	 * Builds the URL for the current selection.
 	 */
-	function buildUrl( root ) {
+	function buildUrl( scope ) {
 		var base = config.baseUrl || window.location.pathname;
-		var groups = collect( root );
+		var groups = collect( scope );
 		var parts = [];
 
 		Object.keys( groups ).forEach( function ( group ) {
@@ -68,14 +66,14 @@
 	/**
 	 * Keeps the Apply button honest about what it is going to do.
 	 */
-	function refreshApply( root ) {
-		var apply = root.querySelector( '[data-wcd-apply]' );
+	function refreshApply( scope ) {
+		var apply = scope.querySelector( '[data-wcd-apply]' );
 
 		if ( ! apply ) {
 			return;
 		}
 
-		var total = countSelected( root );
+		var total = scope.querySelectorAll( '.wcd-item.is-on' ).length;
 
 		if ( total === 0 ) {
 			apply.textContent = strings.showAll || 'Show all products';
@@ -89,7 +87,7 @@
 	/**
 	 * Ticks or unticks one option without leaving the page.
 	 */
-	function toggle( root, option ) {
+	function toggle( scope, option ) {
 		var item = option.closest( '.wcd-item' );
 
 		if ( ! item ) {
@@ -104,7 +102,7 @@
 		if ( ! multi && ! isOn ) {
 			var group = option.getAttribute( 'data-group' );
 
-			root.querySelectorAll( '.wcd-opt[data-group="' + group + '"]' ).forEach( function ( sibling ) {
+			scope.querySelectorAll( '.wcd-opt[data-group="' + group + '"]' ).forEach( function ( sibling ) {
 				var siblingItem = sibling.closest( '.wcd-item' );
 
 				if ( siblingItem ) {
@@ -117,31 +115,31 @@
 		item.classList.toggle( 'is-on', ! isOn );
 		option.setAttribute( 'aria-pressed', isOn ? 'false' : 'true' );
 
-		refreshApply( root );
+		refreshApply( scope );
 	}
 
 	/* --------------------------------------------------------------------
-	 * Drawer open and close
+	 * Open and close
 	 * ----------------------------------------------------------------- */
 
-	var focusable = 'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])';
-
 	function isDrawer( root ) {
-		// Auto mode becomes a static panel on wide screens, where there is no
-		// drawer to open and nothing to trap focus inside.
-		if ( root.getAttribute( 'data-mode' ) !== 'auto' ) {
-			return root.getAttribute( 'data-mode' ) === 'drawer';
+		var mode = root.getAttribute( 'data-mode' );
+
+		if ( mode !== 'auto' ) {
+			return mode === 'drawer';
 		}
 
+		// Auto becomes a static panel on wide screens, where there is no drawer
+		// to open and nothing to trap focus inside.
 		return window.matchMedia( '( max-width: 980px )' ).matches;
 	}
 
-	function open( root ) {
+	function open( root, scope ) {
 		if ( ! isDrawer( root ) ) {
 			return;
 		}
 
-		root.classList.add( 'is-open' );
+		scope.classList.add( 'is-open' );
 		document.documentElement.classList.add( 'wcd-locked' );
 
 		var trigger = root.querySelector( '[data-wcd-open]' );
@@ -150,15 +148,15 @@
 			trigger.setAttribute( 'aria-expanded', 'true' );
 		}
 
-		var close = root.querySelector( '[data-wcd-close]' );
+		var close_btn = scope.querySelector( '[data-wcd-close]' );
 
-		if ( close ) {
-			close.focus();
+		if ( close_btn ) {
+			close_btn.focus();
 		}
 	}
 
-	function close( root ) {
-		root.classList.remove( 'is-open' );
+	function close( root, scope ) {
+		scope.classList.remove( 'is-open' );
 		document.documentElement.classList.remove( 'wcd-locked' );
 
 		var trigger = root.querySelector( '[data-wcd-open]' );
@@ -173,8 +171,8 @@
 	 * Keeps Tab inside the open drawer, so focus cannot wander onto the page
 	 * hidden behind it.
 	 */
-	function trapFocus( root, event ) {
-		var panel = root.querySelector( '[data-wcd-panel]' );
+	function trapFocus( scope, event ) {
+		var panel = scope.querySelector( '[data-wcd-panel]' );
 
 		if ( ! panel ) {
 			return;
@@ -207,32 +205,73 @@
 	 * Wiring
 	 * ----------------------------------------------------------------- */
 
+	/**
+	 * Moves the drawer to the end of the body.
+	 *
+	 * A fixed-position element is only fixed to the viewport, and only stacks
+	 * against the whole page, while none of its ancestors has a transform,
+	 * filter or perspective. Divi puts transforms on sections, so a drawer left
+	 * inside the layout gets trapped in that ancestor's stacking context — where
+	 * a z-index of a million still loses to a nav bar of nine thousand, and the
+	 * site's floating menu tabs end up drawn over the top of it.
+	 *
+	 * Lifting it out of the layout is what modal libraries all do, and for this
+	 * reason.
+	 *
+	 * @return {Element} The element the panel now lives in.
+	 */
+	function portal( root ) {
+		var panel = root.querySelector( '[data-wcd-panel]' );
+
+		if ( ! panel ) {
+			return root;
+		}
+
+		var host = document.createElement( 'div' );
+
+		// The stylesheet is keyed on the mode classes, so they travel with it.
+		host.className = root.className + ' wcd-portal';
+		host.setAttribute( 'data-wcd-portal', panel.id || '' );
+
+		var scrim = root.querySelector( '[data-wcd-scrim]' );
+
+		if ( scrim ) {
+			host.appendChild( scrim );
+		}
+
+		host.appendChild( panel );
+		document.body.appendChild( host );
+
+		return host;
+	}
+
 	function setup( root ) {
 		root.classList.add( 'wcd-js' );
-		refreshApply( root );
 
-		root.addEventListener( 'click', function ( event ) {
-			var open_btn = event.target.closest( '[data-wcd-open]' );
+		// Only a real drawer is lifted out. Auto mode has to stay in the layout,
+		// because on a wide screen it is the sidebar.
+		var scope = root.getAttribute( 'data-mode' ) === 'drawer' ? portal( root ) : root;
 
-			if ( open_btn ) {
+		refreshApply( scope );
+
+		var onClick = function ( event ) {
+			if ( event.target.closest( '[data-wcd-open]' ) ) {
 				event.preventDefault();
-				open( root );
+				open( root, scope );
 
 				return;
 			}
 
 			if ( event.target.closest( '[data-wcd-close]' ) || event.target.closest( '[data-wcd-scrim]' ) ) {
 				event.preventDefault();
-				close( root );
+				close( root, scope );
 
 				return;
 			}
 
-			var apply = event.target.closest( '[data-wcd-apply]' );
-
-			if ( apply ) {
+			if ( event.target.closest( '[data-wcd-apply]' ) ) {
 				event.preventDefault();
-				window.location.href = buildUrl( root );
+				window.location.href = buildUrl( scope );
 
 				return;
 			}
@@ -243,23 +282,29 @@
 				// The href stays as the fallback for a browser without JS; here
 				// the choice is only remembered until Apply is pressed.
 				event.preventDefault();
-				toggle( root, option );
+				toggle( scope, option );
 			}
-		} );
+		};
+
+		root.addEventListener( 'click', onClick );
+
+		if ( scope !== root ) {
+			scope.addEventListener( 'click', onClick );
+		}
 
 		document.addEventListener( 'keydown', function ( event ) {
-			if ( ! root.classList.contains( 'is-open' ) ) {
+			if ( ! scope.classList.contains( 'is-open' ) ) {
 				return;
 			}
 
 			if ( event.key === 'Escape' ) {
-				close( root );
+				close( root, scope );
 
 				return;
 			}
 
 			if ( event.key === 'Tab' ) {
-				trapFocus( root, event );
+				trapFocus( scope, event );
 			}
 		} );
 	}

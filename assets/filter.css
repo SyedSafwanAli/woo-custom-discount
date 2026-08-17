@@ -437,7 +437,7 @@
 	display: block;
 	position: fixed;
 	inset: 0;
-	z-index: 100000;
+	z-index: 999998;
 	background: rgba( 30, 36, 25, 0.45 );
 	opacity: 0;
 	visibility: hidden;
@@ -456,7 +456,7 @@
 	top: 0;
 	right: 0;
 	bottom: 0;
-	z-index: 100001;
+	z-index: 999999;
 	display: flex;
 	flex-direction: column;
 	width: 380px;
@@ -532,6 +532,17 @@ html.wcd-locked body {
 	overflow: hidden;
 }
 
+/* The drawer is moved to the end of the body so no ancestor's transform can trap
+   it in a stacking context. That host must take no space in the layout. */
+.wcd-portal {
+	margin: 0;
+	padding: 0;
+}
+
+.wcd-portal .wcd-bar {
+	display: none;
+}
+
 @media ( max-width: 480px ) {
 	.wcd-filter--drawer.wcd-js .wcd-panel,
 	.wcd-filter--auto.wcd-js .wcd-panel {
@@ -540,27 +551,17 @@ html.wcd-locked body {
 	}
 }
 
-/* ========================================================================
-   Dark scheme
-   ===================================================================== */
-
-@media ( prefers-color-scheme: dark ) {
-	.wcd-filter {
-		--wcd-green-soft: #232a17;
-		--wcd-green-ink: #b9d178;
-		--wcd-ink: #e8ece2;
-		--wcd-ink-2: #a9b0a1;
-		--wcd-ink-3: #7d8478;
-		--wcd-surface: #171a15;
-		--wcd-line: #2f342b;
-		--wcd-line-soft: #232720;
-		--wcd-shadow: -8px 0 40px rgba( 0, 0, 0, 0.6 );
-	}
-
-	.wcd-filter a.wcd-chip:hover {
-		background: #2c3520;
-	}
-}
+/* No `prefers-color-scheme` block on purpose.
+ *
+ * The shop is a light theme, full stop. Following the visitor's operating system
+ * instead would hand a dark drawer to anyone browsing with dark mode on, sitting
+ * against light pages — which is exactly what happened before this was removed.
+ *
+ * If the shop ever gains a dark mode of its own, override the tokens from the
+ * theme rather than reinstating a media query:
+ *
+ *   .wcd-filter { --wcd-surface: #171a15; --wcd-ink: #e8ece2; ... }
+ */
 
 @media ( prefers-reduced-motion: reduce ) {
 	.wcd-filter .wcd-panel,
