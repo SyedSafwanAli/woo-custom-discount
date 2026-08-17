@@ -1,6 +1,6 @@
 <?php
 /**
- * Admin menu and the status screen.
+ * Admin menu, tab routing and the status screen.
  *
  * @package WooCustomDiscount
  */
@@ -12,24 +12,43 @@ namespace WCD;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Registers the admin screens.
- *
- * Only the status screen is built out so far. It exists first on purpose: the
- * first thing to verify on the live site is that the plugin is installed and
- * doing nothing at all.
+ * One page with tabs, rather than six menu entries.
  */
 class Admin {
 
 	public const CAPABILITY = 'manage_woocommerce';
-	public const SLUG       = 'wcd-status';
+	public const SLUG       = 'wcd';
 
 	/**
 	 * Hooks the admin pieces.
 	 */
 	public static function init(): void {
 		add_action( 'admin_menu', array( __CLASS__, 'register_menu' ) );
-		add_action( 'admin_notices', array( __CLASS__, 'conflict_notice' ) );
+		add_action( 'admin_notices', array( __CLASS__, 'notices' ) );
+		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue' ) );
 		add_filter( 'plugin_action_links_' . WCD_BASENAME, array( __CLASS__, 'action_links' ) );
+
+		Admin_Rules::init();
+		Admin_Import::init();
+		Admin_Filters::init();
+		Admin_Settings::init();
+		Admin_Product::init();
+	}
+
+	/**
+	 * The tabs, in order.
+	 *
+	 * @return array<string,string>
+	 */
+	public static function tabs(): array {
+		return array(
+			''          => __( 'Status', 'woo-custom-discount' ),
+			'campaigns' => __( 'Campaigns', 'woo-custom-discount' ),
+			'batches'   => __( 'Expiry Batches', 'woo-custom-discount' ),
+			'filters'   => __( 'Filters', 'woo-custom-discount' ),
+			'import'    => __( 'Import & Preview', 'woo-custom-discount' ),
+			'settings'  => __( 'Settings', 'woo-custom-discount' ),
+		);
 	}
 
 	/**
@@ -42,64 +61,164 @@ class Admin {
 			__( 'Custom Discount', 'woo-custom-discount' ),
 			self::CAPABILITY,
 			self::SLUG,
-			array( __CLASS__, 'render_status' )
+			array( __CLASS__, 'render' )
 		);
 	}
 
 	/**
-	 * Adds a settings link on the Plugins screen.
+	 * URL of one tab.
+	 *
+	 * @param array<string,string|int> $extra Extra query arguments.
+	 */
+	public static function url( string $tab = '', array $extra = array() ): string {
+		$args = array( 'page' => self::SLUG );
+
+		if ( $tab !== '' ) {
+			$args['tab'] = $tab;
+		}
+
+		return add_query_arg( array_merge( $args, $extra ), admin_url( 'admin.php' ) );
+	}
+
+	/**
+	 * The tab being viewed.
+	 */
+	public static function current_tab(): string {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- navigation only.
+		$tab = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( (string) $_GET['tab'] ) ) : '';
+
+		return array_key_exists( $tab, self::tabs() ) ? $tab : '';
+	}
+
+	/**
+	 * Loads WooCommerce's product search control on the rule editor.
+	 *
+	 * @param string $hook Current admin page.
+	 */
+	public static function enqueue( string $hook ): void {
+		if ( strpos( $hook, self::SLUG ) === false ) {
+			return;
+		}
+
+		wp_enqueue_style( 'woocommerce_admin_styles' );
+		wp_enqueue_script( 'wc-enhanced-select' );
+		wp_enqueue_style( 'wcd-admin', WCD_URL . 'assets/admin.css', array(), WCD_VERSION );
+	}
+
+	/**
+	 * Adds a link on the Plugins screen.
 	 *
 	 * @param string[] $links Existing links.
 	 * @return string[]
 	 */
 	public static function action_links( array $links ): array {
-		$url = admin_url( 'admin.php?page=' . self::SLUG );
-
 		array_unshift(
 			$links,
-			'<a href="' . esc_url( $url ) . '">' . esc_html__( 'Status', 'woo-custom-discount' ) . '</a>'
+			'<a href="' . esc_url( self::url() ) . '">' . esc_html__( 'Settings', 'woo-custom-discount' ) . '</a>'
 		);
 
 		return $links;
 	}
 
 	/**
-	 * Warns when a conflicting discount plugin is active while our engine is on.
-	 *
-	 * This is the guard that keeps the live switchover safe. If both plugins are
-	 * running, the other one would apply its percentage on top of the sale price
-	 * we wrote, so the engine parks itself and says so loudly.
+	 * Renders whichever tab is active.
 	 */
-	public static function conflict_notice(): void {
+	public static function render(): void {
+		if ( ! current_user_can( self::CAPABILITY ) ) {
+			wp_die( esc_html__( 'You do not have permission to view this page.', 'woo-custom-discount' ) );
+		}
+
+		$tab = self::current_tab();
+
+		echo '<div class="wrap wcd-admin">';
+		echo '<h1>' . esc_html__( 'Woo Custom Discount', 'woo-custom-discount' ) . '</h1>';
+
+		echo '<nav class="nav-tab-wrapper wcd-tabs">';
+
+		foreach ( self::tabs() as $slug => $label ) {
+			printf(
+				'<a href="%1$s" class="nav-tab%2$s">%3$s</a>',
+				esc_url( self::url( $slug ) ),
+				$slug === $tab ? ' nav-tab-active' : '',
+				esc_html( $label )
+			);
+		}
+
+		echo '</nav>';
+
+		switch ( $tab ) {
+			case 'campaigns':
+				Admin_Rules::render( Rules::TYPE_CAMPAIGN );
+				break;
+
+			case 'batches':
+				Admin_Rules::render( Rules::TYPE_BATCH );
+				break;
+
+			case 'filters':
+				Admin_Filters::render();
+				break;
+
+			case 'import':
+				Admin_Import::render();
+				break;
+
+			case 'settings':
+				Admin_Settings::render();
+				break;
+
+			default:
+				self::render_status();
+		}
+
+		echo '</div>';
+	}
+
+	/**
+	 * Admin notices: the conflict guard, and one-off action feedback.
+	 */
+	public static function notices(): void {
 		if ( ! current_user_can( self::CAPABILITY ) ) {
 			return;
 		}
 
 		$conflicts = Plugin::active_conflicts();
 
-		if ( $conflicts === array() || ! Settings::is_on( 'engine_enabled' ) ) {
-			return;
+		if ( $conflicts !== array() && Settings::is_on( 'engine_enabled' ) ) {
+			echo '<div class="notice notice-error"><p><strong>';
+			echo esc_html__( 'Woo Custom Discount: the price engine is switched on but parked.', 'woo-custom-discount' );
+			echo '</strong></p><p>';
+			printf(
+				/* translators: %s: list of conflicting plugin files. */
+				esc_html__( 'Another discount plugin is still active (%s). Running both would apply a second discount on top of ours, so no prices have been changed. Deactivate the other plugin to let the engine run.', 'woo-custom-discount' ),
+				'<code>' . esc_html( implode( '</code>, <code>', $conflicts ) ) . '</code>'
+			);
+			echo '</p></div>';
 		}
 
-		echo '<div class="notice notice-error"><p><strong>';
-		echo esc_html__( 'Woo Custom Discount: the price engine is switched on but parked.', 'woo-custom-discount' );
-		echo '</strong></p><p>';
-		printf(
-			/* translators: %s: list of conflicting plugin files. */
-			esc_html__( 'Another discount plugin is still active (%s). Running both would apply a second discount on top of ours, so no prices have been changed. Deactivate the other plugin to let the engine run.', 'woo-custom-discount' ),
-			'<code>' . esc_html( implode( '</code>, <code>', $conflicts ) ) . '</code>'
-		);
-		echo '</p></div>';
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display only.
+		$message = isset( $_GET['wcd_message'] ) ? sanitize_text_field( wp_unslash( (string) $_GET['wcd_message'] ) ) : '';
+
+		if ( $message !== '' ) {
+			printf(
+				'<div class="notice notice-success is-dismissible"><p>%s</p></div>',
+				esc_html( $message )
+			);
+		}
+	}
+
+	/**
+	 * Redirects back to a tab with a message.
+	 */
+	public static function redirect_with_message( string $tab, string $message ): void {
+		wp_safe_redirect( self::url( $tab, array( 'wcd_message' => $message ) ) );
+		exit;
 	}
 
 	/**
 	 * The status screen: what is on, what is off, and what has been touched.
 	 */
-	public static function render_status(): void {
-		if ( ! current_user_can( self::CAPABILITY ) ) {
-			wp_die( esc_html__( 'You do not have permission to view this page.', 'woo-custom-discount' ) );
-		}
-
+	private static function render_status(): void {
 		$counts    = Rules::counts();
 		$conflicts = Plugin::active_conflicts();
 		$owned     = count( Price_Engine::owned_product_ids() );
@@ -111,92 +230,86 @@ class Admin {
 			'hide_expired'      => __( 'Hide expired products', 'woo-custom-discount' ),
 		);
 
-		echo '<div class="wrap">';
-		echo '<h1>' . esc_html__( 'Woo Custom Discount', 'woo-custom-discount' ) . '</h1>';
-
 		echo '<p class="description">';
 		printf(
 			/* translators: %s: plugin version. */
-			esc_html__( 'Version %s. Nothing is applied to the store until a switch below is turned on.', 'woo-custom-discount' ),
+			esc_html__( 'Version %s. Nothing is applied to the store until a switch is turned on under Settings.', 'woo-custom-discount' ),
 			esc_html( WCD_VERSION )
 		);
 		echo '</p>';
 
-		// --- Feature switches ------------------------------------------------
-		echo '<h2>' . esc_html__( 'Features', 'woo-custom-discount' ) . '</h2>';
-		echo '<table class="widefat striped" style="max-width:640px">';
-		echo '<thead><tr><th>' . esc_html__( 'Feature', 'woo-custom-discount' ) . '</th><th>' . esc_html__( 'State', 'woo-custom-discount' ) . '</th></tr></thead><tbody>';
+		echo '<div class="wcd-cards">';
+
+		// --- Features --------------------------------------------------------
+		echo '<div class="wcd-card"><h2>' . esc_html__( 'Features', 'woo-custom-discount' ) . '</h2><table class="widefat striped"><tbody>';
 
 		foreach ( $switches as $key => $label ) {
 			$on = Settings::is_on( $key );
 
-			echo '<tr><td>' . esc_html( $label ) . '</td><td>';
-			echo $on
-				? '<span style="color:#0b6e63;font-weight:600">' . esc_html__( 'On', 'woo-custom-discount' ) . '</span>'
-				: '<span style="color:#777">' . esc_html__( 'Off', 'woo-custom-discount' ) . '</span>';
-			echo '</td></tr>';
+			printf(
+				'<tr><td>%1$s</td><td class="wcd-state"><span class="wcd-pill %2$s">%3$s</span></td></tr>',
+				esc_html( $label ),
+				$on ? 'is-on' : 'is-off',
+				$on ? esc_html__( 'On', 'woo-custom-discount' ) : esc_html__( 'Off', 'woo-custom-discount' )
+			);
 		}
 
-		echo '</tbody></table>';
+		echo '</tbody></table></div>';
 
 		// --- Health ----------------------------------------------------------
-		echo '<h2>' . esc_html__( 'Health', 'woo-custom-discount' ) . '</h2>';
-		echo '<table class="widefat striped" style="max-width:640px"><tbody>';
+		echo '<div class="wcd-card"><h2>' . esc_html__( 'Health', 'woo-custom-discount' ) . '</h2><table class="widefat striped"><tbody>';
 
 		self::row(
 			__( 'Database tables', 'woo-custom-discount' ),
-			Install::tables_exist()
-				? __( 'Created', 'woo-custom-discount' )
-				: __( 'Missing — deactivate and activate the plugin again', 'woo-custom-discount' ),
+			Install::tables_exist() ? __( 'Created', 'woo-custom-discount' ) : __( 'Missing — reactivate the plugin', 'woo-custom-discount' ),
 			Install::tables_exist()
 		);
 
 		self::row(
 			__( 'Conflicting discount plugin', 'woo-custom-discount' ),
-			$conflicts === array()
-				? __( 'None active', 'woo-custom-discount' )
-				: implode( ', ', $conflicts ),
+			$conflicts === array() ? __( 'None active', 'woo-custom-discount' ) : implode( ', ', $conflicts ),
 			$conflicts === array()
 		);
 
 		self::row(
 			__( 'Engine allowed to run', 'woo-custom-discount' ),
-			Plugin::engine_can_run()
-				? __( 'Yes', 'woo-custom-discount' )
-				: __( 'No — switched off, or a conflicting plugin is active', 'woo-custom-discount' ),
+			Plugin::engine_can_run() ? __( 'Yes', 'woo-custom-discount' ) : __( 'No — switched off, or a conflicting plugin is active', 'woo-custom-discount' ),
 			Plugin::engine_can_run()
 		);
 
-		self::row(
-			__( 'Campaigns', 'woo-custom-discount' ),
-			(string) $counts[ Rules::TYPE_CAMPAIGN ],
-			null
-		);
+		self::row( __( 'Campaigns', 'woo-custom-discount' ), (string) $counts[ Rules::TYPE_CAMPAIGN ], null );
+		self::row( __( 'Expiry batches', 'woo-custom-discount' ), (string) $counts[ Rules::TYPE_BATCH ], null );
+		self::row( __( 'Sale prices we own', 'woo-custom-discount' ), (string) $owned, null );
+		self::row( __( 'Site timezone', 'woo-custom-discount' ), self::timezone_label(), null );
 
-		self::row(
-			__( 'Expiry batches', 'woo-custom-discount' ),
-			(string) $counts[ Rules::TYPE_BATCH ],
-			null
-		);
-
-		self::row(
-			__( 'Products with a sale price we own', 'woo-custom-discount' ),
-			(string) $owned,
-			null
-		);
-
-		self::row(
-			__( 'Site timezone', 'woo-custom-discount' ),
-			self::timezone_label(),
-			null
-		);
-
-		echo '</tbody></table>';
-
-		echo '<h2>' . esc_html__( 'Next', 'woo-custom-discount' ) . '</h2>';
-		echo '<p>' . esc_html__( 'Campaigns, expiry batches, the importer, filters and countdowns are being built. This screen will always show what the plugin is currently doing to the store.', 'woo-custom-discount' ) . '</p>';
-
+		echo '</tbody></table></div>';
 		echo '</div>';
+
+		// --- What is live ----------------------------------------------------
+		$expired = Expiry::expired_product_ids();
+
+		if ( $expired !== array() ) {
+			echo '<h2>' . esc_html__( 'Expired stock', 'woo-custom-discount' ) . '</h2>';
+			printf(
+				'<p>%s</p>',
+				esc_html(
+					sprintf(
+						/* translators: %d: number of products. */
+						_n(
+							'%d product sits in a batch whose expiry month has passed.',
+							'%d products sit in a batch whose expiry month has passed.',
+							count( $expired ),
+							'woo-custom-discount'
+						),
+						count( $expired )
+					)
+				)
+			);
+
+			if ( ! Settings::is_on( 'hide_expired' ) ) {
+				echo '<p class="description">' . esc_html__( 'Hiding is switched off, so they are still on sale in the shop.', 'woo-custom-discount' ) . '</p>';
+			}
+		}
 	}
 
 	/**
@@ -207,26 +320,28 @@ class Admin {
 	 * @param bool|null $good  True/false to colour it, null to leave plain.
 	 */
 	private static function row( string $label, string $value, ?bool $good ): void {
-		$colour = '';
+		$class = '';
 
 		if ( $good === true ) {
-			$colour = 'color:#0b6e63;font-weight:600';
+			$class = 'wcd-good';
 		} elseif ( $good === false ) {
-			$colour = 'color:#a02a21;font-weight:600';
+			$class = 'wcd-bad';
 		}
 
-		echo '<tr><td style="width:52%">' . esc_html( $label ) . '</td>';
-		echo '<td><span style="' . esc_attr( $colour ) . '">' . esc_html( $value ) . '</span></td></tr>';
+		printf(
+			'<tr><td>%1$s</td><td class="%2$s">%3$s</td></tr>',
+			esc_html( $label ),
+			esc_attr( $class ),
+			esc_html( $value )
+		);
 	}
 
 	/**
 	 * A readable timezone, with a nudge when the store is still on UTC.
 	 */
 	private static function timezone_label(): string {
-		$tz  = wp_timezone_string();
-		$now = wp_date( 'd M Y, H:i' );
-
-		$label = sprintf( '%s — %s', $tz, (string) $now );
+		$tz    = wp_timezone_string();
+		$label = sprintf( '%s — %s', $tz, (string) wp_date( 'd M Y, H:i' ) );
 
 		if ( in_array( $tz, array( 'UTC', '+00:00' ), true ) ) {
 			$label .= ' ' . __( '(store sells in PKR; Pakistan is UTC+5, so sale end times will be 5 hours late)', 'woo-custom-discount' );

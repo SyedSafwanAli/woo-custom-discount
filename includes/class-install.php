@@ -58,6 +58,12 @@ class Install {
 		if ( ! get_option( 'wcd_activated_at' ) ) {
 			update_option( 'wcd_activated_at', time(), false );
 		}
+
+		// A nightly pass catches anything the exact-moment jobs missed, such as
+		// a rule that ended while the site had no traffic to fire cron.
+		if ( ! wp_next_scheduled( 'wcd_daily_maintenance' ) ) {
+			wp_schedule_event( time() + HOUR_IN_SECONDS, 'daily', 'wcd_daily_maintenance' );
+		}
 	}
 
 	/**

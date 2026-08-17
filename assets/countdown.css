@@ -1,0 +1,137 @@
+/**
+ * Countdown styling.
+ *
+ * Colours and fonts come from the theme wherever possible — currentColor,
+ * inherited families, and one accent variable the theme can override. The point
+ * is that this looks like part of the shop, not like a plugin bolted on.
+ */
+
+.wcd-countdown {
+	--wcd-accent: #c0392b;
+	--wcd-accent-soft: rgba( 192, 57, 43, 0.08 );
+	--wcd-border: rgba( 0, 0, 0, 0.1 );
+
+	display: none;
+	margin: 0.75em 0;
+	padding: 0.6em 0.75em;
+	border: 1px dashed var( --wcd-accent );
+	border-radius: 6px;
+	background: var( --wcd-accent-soft );
+	font-family: inherit;
+	line-height: 1.25;
+	text-align: center;
+}
+
+/* Only shown once the script has confirmed there is time left on the clock. */
+.wcd-countdown.is-live {
+	display: block;
+}
+
+.wcd-countdown--expiry {
+	--wcd-accent: #b26a00;
+	--wcd-accent-soft: rgba( 178, 106, 0, 0.08 );
+}
+
+.wcd-countdown__intro {
+	margin: 0 0 0.45em;
+	display: flex;
+	flex-direction: column;
+	gap: 0.1em;
+}
+
+.wcd-countdown__heading {
+	font-size: 0.95em;
+	font-weight: 700;
+	color: var( --wcd-accent );
+	letter-spacing: 0.01em;
+}
+
+.wcd-countdown__sub {
+	font-size: 0.7em;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.09em;
+	opacity: 0.7;
+}
+
+.wcd-countdown__clock {
+	display: flex;
+	justify-content: center;
+	align-items: flex-start;
+	gap: 0.35em;
+}
+
+.wcd-countdown__unit {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 0.15em;
+	min-width: 2.6em;
+	padding: 0.3em 0.2em;
+	border-radius: 4px;
+	background: #fff;
+	border: 1px solid var( --wcd-border );
+}
+
+.wcd-countdown__value {
+	font-size: 1.05em;
+	font-weight: 700;
+	color: var( --wcd-accent );
+	/* Digits change every second; tabular figures stop the box twitching. */
+	font-variant-numeric: tabular-nums;
+	font-feature-settings: "tnum";
+}
+
+.wcd-countdown__name {
+	font-size: 0.6em;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	opacity: 0.65;
+}
+
+/* Tighter inside a product grid cell, where space is short. */
+.wcd-countdown--loop {
+	padding: 0.45em 0.5em;
+	margin: 0.5em 0;
+}
+
+.wcd-countdown--loop .wcd-countdown__heading {
+	font-size: 0.85em;
+}
+
+.wcd-countdown--loop .wcd-countdown__unit {
+	min-width: 2.2em;
+	padding: 0.22em 0.15em;
+}
+
+.wcd-countdown--loop .wcd-countdown__value {
+	font-size: 0.95em;
+}
+
+.wcd-expiry-note {
+	margin: 0.5em 0 1em;
+	font-size: 0.9em;
+}
+
+.wcd-expiry-note__label {
+	font-weight: 600;
+	text-transform: uppercase;
+	font-size: 0.8em;
+	letter-spacing: 0.07em;
+	opacity: 0.7;
+}
+
+.wcd-expiry-note__value {
+	font-weight: 600;
+}
+
+@media ( prefers-color-scheme: dark ) {
+	.wcd-countdown {
+		--wcd-border: rgba( 255, 255, 255, 0.16 );
+	}
+
+	.wcd-countdown__unit {
+		background: rgba( 255, 255, 255, 0.06 );
+	}
+}

@@ -38,6 +38,14 @@ class Rules {
 	public const ITEM_CATEGORY = 'category';
 
 	/**
+	 * Products a rule must skip even though its scope would otherwise cover
+	 * them. A store-wide campaign needs this: the shop deliberately keeps a few
+	 * products out of the blanket discount, and importing without that list
+	 * would quietly start discounting them.
+	 */
+	public const ITEM_EXCLUDE = 'exclude_product';
+
+	/**
 	 * One rule, with its product and category lists attached.
 	 *
 	 * @return array<string,mixed>|null
@@ -142,7 +150,7 @@ class Rules {
 			$wpdb->update( Install::table( Install::TABLE_RULES ), $row, array( 'id' => $id ) );
 		}
 
-		if ( isset( $data['products'] ) || isset( $data['categories'] ) ) {
+		if ( isset( $data['products'] ) || isset( $data['categories'] ) || isset( $data['excluded'] ) ) {
 			self::set_items( $id, $data );
 		}
 
@@ -173,6 +181,7 @@ class Rules {
 		$map = array(
 			self::ITEM_PRODUCT  => 'products',
 			self::ITEM_CATEGORY => 'categories',
+			self::ITEM_EXCLUDE  => 'excluded',
 		);
 
 		foreach ( $map as $item_type => $key ) {
@@ -400,6 +409,7 @@ class Rules {
 
 		$row['products']   = self::items( $row['id'], self::ITEM_PRODUCT );
 		$row['categories'] = self::items( $row['id'], self::ITEM_CATEGORY );
+		$row['excluded']   = self::items( $row['id'], self::ITEM_EXCLUDE );
 
 		return $row;
 	}

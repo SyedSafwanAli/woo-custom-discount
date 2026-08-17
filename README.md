@@ -5,7 +5,7 @@ Discounts, expiry batches, shop filters and countdowns for
 dependency on a third-party discount plugin.
 
 - **Requires** WordPress 6.0+, WooCommerce 8.0+, PHP 8.0+
-- **Current version** 0.1.0 — foundation only, nothing applied to the store yet
+- **Current version** 0.2.0 — feature complete, verified on a staging copy of the live store
 
 ## What it does
 
@@ -55,25 +55,68 @@ These are not optional, and the code is arranged around them.
 ## Layout
 
 ```
-woo-custom-discount.php     Plugin header, constants, autoloader, hooks
-uninstall.php               Honours the purge setting
+woo-custom-discount.php       Plugin header, constants, autoloader, hooks
+uninstall.php                 Honours the purge setting
 includes/
-  class-plugin.php          Bootstrap; decides what runs
-  class-install.php         Tables, activation, deactivation
-  class-settings.php        Settings, all defaulting to off
-  class-rules.php           Campaigns and expiry batches
-  class-price-engine.php    Writes and clears sale prices
-  class-admin.php           Admin screens
+  class-plugin.php            Bootstrap; decides what runs
+  class-install.php           Tables, activation, deactivation
+  class-settings.php          Settings, all defaulting to off
+  class-rules.php             Campaigns and expiry batches
+  class-resolver.php          Which rule applies to a product
+  class-price-engine.php      Writes and clears sale prices
+  class-expiry.php            Hides stock whose month has passed
+  class-buckets.php           Filter bands, and suggesting them from real data
+  class-filter-query.php      Turns URL parameters into query conditions
+  class-filter-ui.php         Shortcode, widget, automatic placement
+  class-filter-widget.php     Sidebar widget
+  class-countdown.php         Sale and expiry countdowns
+  class-importer.php          Reads the old plugin — the only file that does
+  class-admin*.php            Admin screens
+assets/                       Front-end and admin CSS/JS
 ```
+
+## The resolution order
+
+One place decides every price, and nothing else second-guesses it:
+
+1. In an expiry batch? Batch percent. Stop.
+2. Own campaign? That percent.
+3. Category campaign? That percent.
+4. Store-wide campaign? That percent.
+5. Otherwise no discount.
+
+Discounts never stack — a product on 60% does not also collect the store-wide
+10%. Within one level, the larger discount wins. An exclusion list beats the
+scope, so a store-wide campaign can be told to skip individual products.
+
+## Verified against the live catalogue
+
+Checked on a staging copy restored from the live backup, 122 products:
+
+| Check | Result |
+| --- | --- |
+| Discount percent vs the old plugin, every product | 0 mismatches |
+| Prices written | 118 priced, 4 correctly skipped |
+| Hand-set sale price (product 4015) | untouched through every cycle |
+| Variable products | skipped, as intended |
+| Sale end dates | last day of the batch month, 23:59:59 |
+| Filter totals | 60%: 12, 50%: 20, both: 32, Aug expiry: 5 |
+| Category + discount | 10 → 7, so groups combine with AND |
+| Deactivate → reactivate | prices cleared then restored, repeatably |
+| Conflict guard | engine refused to run while the old plugin was active |
+
+Only price differences are from rounding down, at most 1 unit, always in the
+customer's favour. The preview screen lists each one before anything is applied.
 
 ## Roadmap
 
 - [x] Foundation — tables, settings, safe activate/deactivate, status screen
-- [ ] Resolver and price engine — decide and write each product's price
-- [ ] Importer — pull existing rules and seed expiry batches
-- [ ] Preview — compare every current price against the proposed one
-- [ ] Shop filters
-- [ ] Countdowns
+- [x] Resolver and price engine
+- [x] Importer — rules, plus expiry batches seeded from the old category names
+- [x] Preview — every current price beside its proposed one
+- [x] Shop filters — discount, expiry, category, price, stock, sort
+- [x] Countdowns — sale and expiry, rendered client-side
+- [ ] Live rollout, one switch at a time
 
 ## Licence
 

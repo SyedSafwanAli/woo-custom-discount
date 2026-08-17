@@ -41,24 +41,30 @@ class Plugin {
 		load_plugin_textdomain( 'woo-custom-discount', false, dirname( WCD_BASENAME ) . '/languages' );
 
 		self::maybe_upgrade();
+		self::hook_maintenance();
 
 		if ( is_admin() ) {
 			Admin::init();
 		}
 
-		// Price writing, filters and countdowns each wait for their own switch.
-		// Nothing below runs on a fresh install.
+		// Each feature waits for its own switch. Nothing below runs on a fresh
+		// install, so putting the plugin on a live site changes nothing until
+		// somebody deliberately turns a switch on.
 		if ( self::engine_can_run() ) {
-			// Increment 2 wires the resolver and the writing side here.
-			do_action( 'wcd_engine_ready' );
+			self::hook_engine();
+		}
+
+		if ( Settings::is_on( 'hide_expired' ) ) {
+			Expiry::init();
 		}
 
 		if ( Settings::is_on( 'filters_enabled' ) ) {
-			do_action( 'wcd_filters_ready' );
+			Filter_Query::init();
+			Filter_UI::init();
 		}
 
 		if ( Settings::is_on( 'countdown_enabled' ) ) {
-			do_action( 'wcd_countdown_ready' );
+			Countdown::init();
 		}
 	}
 
@@ -98,6 +104,57 @@ class Plugin {
 		}
 
 		return $active;
+	}
+
+	/**
+	 * Keeps prices in step with the product catalogue.
+	 */
+	private static function hook_engine(): void {
+		// A product's regular price can change at any time, and the sale price
+		// has to follow it. Without this, editing 6,995 to 7,995 would leave
+		// yesterday's discounted figure in place.
+		add_action( 'woocommerce_update_product', array( __CLASS__, 'on_product_saved' ), 20 );
+		add_action( 'woocommerce_new_product', array( __CLASS__, 'on_product_saved' ), 20 );
+	}
+
+	/**
+	 * Re-prices one product after it is saved.
+	 *
+	 * @param int $product_id Product ID.
+	 */
+	public static function on_product_saved( $product_id ): void {
+		// The engine saves products itself, and that save lands right back here.
+		// Standing down while it is working is what stops a re-entrant pass from
+		// mistaking a freshly written sale price for the product's original one.
+		if ( Price_Engine::is_busy() ) {
+			return;
+		}
+
+		Resolver::flush();
+		Price_Engine::apply_product( (int) $product_id );
+	}
+
+	/**
+	 * Scheduled jobs that keep prices and expiry honest over time.
+	 */
+	private static function hook_maintenance(): void {
+		add_action( 'wcd_daily_maintenance', array( __CLASS__, 'run_maintenance' ) );
+		add_action( 'wcd_rule_ended', array( __CLASS__, 'run_maintenance' ) );
+	}
+
+	/**
+	 * Re-runs the engine and forgets the cached expiry list.
+	 *
+	 * Called once a day, and again at the exact moment any rule ends — that
+	 * second job is what stops a discount outliving its own countdown.
+	 */
+	public static function run_maintenance(): void {
+		Expiry::flush_cache();
+		Resolver::flush();
+
+		if ( self::engine_can_run() ) {
+			Price_Engine::apply_all();
+		}
 	}
 
 	/**

@@ -1,0 +1,216 @@
+/**
+ * Admin styling. Sits on top of WordPress's own admin CSS rather than
+ * replacing it, so the screens stay familiar.
+ */
+
+.wcd-admin .wcd-intro {
+	max-width: 46em;
+	font-size: 14px;
+}
+
+.wcd-tabs {
+	margin-bottom: 1.5em;
+}
+
+/* --- Status cards --------------------------------------------------------- */
+
+.wcd-cards {
+	display: grid;
+	grid-template-columns: repeat( auto-fit, minmax( 320px, 1fr ) );
+	gap: 1.5em;
+	margin-bottom: 2em;
+}
+
+.wcd-card h2 {
+	font-size: 15px;
+	margin: 0 0 0.6em;
+}
+
+.wcd-card td {
+	vertical-align: middle;
+}
+
+.wcd-card .wcd-state {
+	text-align: right;
+	width: 30%;
+}
+
+/* --- Pills --------------------------------------------------------------- */
+
+.wcd-pill {
+	display: inline-block;
+	padding: 2px 10px;
+	border-radius: 999px;
+	font-size: 11px;
+	font-weight: 600;
+	line-height: 1.7;
+	letter-spacing: 0.02em;
+}
+
+.wcd-pill.is-on {
+	background: #dcf0ec;
+	color: #0a5c53;
+}
+
+.wcd-pill.is-off {
+	background: #eceff0;
+	color: #61707a;
+}
+
+.wcd-pill.is-warn {
+	background: #fbeedd;
+	color: #8a4c00;
+}
+
+.wcd-pill.is-info {
+	background: #e4ecf7;
+	color: #1f4a80;
+}
+
+.wcd-good {
+	color: #0a5c53;
+	font-weight: 600;
+}
+
+.wcd-bad {
+	color: #98241c;
+	font-weight: 600;
+}
+
+/* --- Lists --------------------------------------------------------------- */
+
+.wcd-list {
+	margin: 1em 0 1.5em;
+}
+
+.wcd-list th {
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.07em;
+}
+
+.wcd-list .wcd-num {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.wcd-list .wcd-actions {
+	text-align: right;
+	white-space: nowrap;
+}
+
+.wcd-list .wcd-delete {
+	color: #98241c;
+}
+
+.wcd-row-expired td {
+	opacity: 0.6;
+}
+
+.wcd-row-warn {
+	box-shadow: inset 3px 0 0 #d4881f;
+}
+
+.wcd-row-info {
+	box-shadow: inset 3px 0 0 #4a7cc0;
+}
+
+/* --- Preview ------------------------------------------------------------- */
+
+.wcd-summary {
+	margin: 0.75em 0 1.25em;
+}
+
+.wcd-summary .wcd-pill {
+	font-size: 12px;
+	padding: 4px 14px;
+}
+
+.wcd-preview {
+	max-width: 1100px;
+}
+
+/* --- Empty states -------------------------------------------------------- */
+
+.wcd-empty {
+	max-width: 46em;
+	margin: 1em 0 1.5em;
+	padding: 1.25em 1.5em;
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-left: 3px solid #8c9196;
+	border-radius: 2px;
+}
+
+.wcd-empty p {
+	margin: 0;
+}
+
+/* --- Forms --------------------------------------------------------------- */
+
+.wcd-check {
+	display: block;
+	margin-bottom: 0.45em;
+}
+
+.wcd-check.is-housekeeping {
+	opacity: 0.65;
+}
+
+.wcd-check em {
+	font-size: 12px;
+	color: #646970;
+}
+
+.wcd-cat-grid {
+	display: grid;
+	grid-template-columns: repeat( auto-fit, minmax( 260px, 1fr ) );
+	gap: 0 2em;
+	max-width: 1100px;
+	margin-bottom: 1.5em;
+}
+
+.wcd-buckets {
+	max-width: 720px;
+	margin-bottom: 0.75em;
+}
+
+.wcd-dist {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5em;
+	margin: 0.5em 0 1.25em;
+	padding: 0;
+	list-style: none;
+}
+
+.wcd-dist li {
+	display: flex;
+	align-items: baseline;
+	gap: 0.4em;
+	padding: 5px 12px;
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-radius: 3px;
+	font-size: 12px;
+}
+
+.wcd-dist span {
+	color: #646970;
+}
+
+.wcd-import-form {
+	margin: 1.5em 0 2.5em;
+}
+
+/* --- Product panel ------------------------------------------------------- */
+
+.wcd-product-box .wcd-product-sum {
+	font-size: 15px;
+	font-variant-numeric: tabular-nums;
+}
+
+.wcd-product-box hr {
+	margin: 1em 0;
+}
