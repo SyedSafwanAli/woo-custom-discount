@@ -308,8 +308,10 @@ class Price_Engine {
 
 		self::schedule_rule_endings();
 
-		// Prices moved, so every cached filter count is now suspect.
+		// Prices moved, so every cached filter count is now suspect, and the
+		// slider's ends are worked out from the cheapest and dearest price.
 		Filter_Query::bump_counts_version();
+		Buckets::flush_price_bounds();
 
 		Install::flush_caches();
 
@@ -400,6 +402,7 @@ class Price_Engine {
 		}
 
 		Filter_Query::bump_counts_version();
+		Buckets::flush_price_bounds();
 
 		Install::flush_caches();
 

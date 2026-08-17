@@ -177,8 +177,37 @@ class Admin_Filters {
 
 		self::render_bucket_editor( 'discount_buckets', $discount_buckets, '%' );
 
-		// --- Price bands -----------------------------------------------------
-		echo '<h2>' . esc_html__( 'Price bands', 'woo-custom-discount' ) . '</h2>';
+		// --- Price -----------------------------------------------------------
+		echo '<h2>' . esc_html__( 'Price', 'woo-custom-discount' ) . '</h2>';
+
+		$price_mode  = (string) Settings::get( 'price_mode', 'slider' );
+		$price_modes = array(
+			'slider' => __( 'A slider the customer sets themselves', 'woo-custom-discount' ),
+			'bands'  => __( 'Fixed bands, set below', 'woo-custom-discount' ),
+		);
+
+		foreach ( $price_modes as $key => $label ) {
+			printf(
+				'<label class="wcd-check"><input type="radio" name="price_mode" value="%1$s"%2$s> %3$s</label>',
+				esc_attr( $key ),
+				checked( $price_mode, $key, false ),
+				esc_html( $label )
+			);
+		}
+
+		$bounds = Buckets::price_bounds();
+
+		if ( $price_mode === 'slider' && $bounds['max'] > $bounds['min'] ) {
+			echo '<p class="description">';
+			printf(
+				/* translators: 1: lowest price, 2: highest price, 3: step size. */
+				esc_html__( 'The slider runs from %1$s to %2$s in steps of %3$s, worked out from your catalogue and updated whenever prices change. The bands below are still used when a visitor has JavaScript switched off, since a sliding range cannot be expressed as a plain link.', 'woo-custom-discount' ),
+				esc_html( number_format( $bounds['min'] ) ),
+				esc_html( number_format( $bounds['max'] ) ),
+				esc_html( number_format( $bounds['step'] ) )
+			);
+			echo '</p>';
+		}
 
 		self::render_bucket_editor( 'price_buckets', $price_buckets, get_woocommerce_currency_symbol() );
 
@@ -388,7 +417,8 @@ class Admin_Filters {
 
 		$position = isset( $_POST['filter_position'] ) ? sanitize_key( wp_unslash( (string) $_POST['filter_position'] ) ) : 'none';
 		$display  = isset( $_POST['filter_display'] ) ? sanitize_key( wp_unslash( (string) $_POST['filter_display'] ) ) : 'drawer';
-		$align    = isset( $_POST['filter_align'] ) ? sanitize_key( wp_unslash( (string) $_POST['filter_align'] ) ) : 'left';
+		$align      = isset( $_POST['filter_align'] ) ? sanitize_key( wp_unslash( (string) $_POST['filter_align'] ) ) : 'left';
+		$price_mode = isset( $_POST['price_mode'] ) ? sanitize_key( wp_unslash( (string) $_POST['price_mode'] ) ) : 'slider';
 
 		Settings::update(
 			array(
@@ -396,6 +426,7 @@ class Admin_Filters {
 				'filter_position'   => in_array( $position, array( 'none', 'above_grid' ), true ) ? $position : 'none',
 				'filter_display'    => in_array( $display, array( 'drawer', 'panel', 'auto' ), true ) ? $display : 'drawer',
 				'filter_align'      => in_array( $align, array( 'left', 'center', 'right' ), true ) ? $align : 'left',
+				'price_mode'        => in_array( $price_mode, array( 'slider', 'bands' ), true ) ? $price_mode : 'slider',
 				'show_counts'       => ! empty( $_POST['show_counts'] ),
 				'hide_empty'        => ! empty( $_POST['hide_empty'] ),
 				'discount_buckets'  => self::clean_buckets( $_POST['discount_buckets'] ?? array(), 'discount' ),

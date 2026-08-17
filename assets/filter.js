@@ -18,10 +18,145 @@
 
 	var focusable = 'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
+	/* --------------------------------------------------------------------
+	 * Price range slider
+	 * ----------------------------------------------------------------- */
+
+	/**
+	 * The slider's bounds and current values.
+	 */
+	function readRange( form ) {
+		var lo = form.querySelector( '[data-wcd-thumb="min"]' );
+		var hi = form.querySelector( '[data-wcd-thumb="max"]' );
+
+		if ( ! lo || ! hi ) {
+			return null;
+		}
+
+		return {
+			form: form,
+			lo: lo,
+			hi: hi,
+			numLo: form.querySelector( '[data-wcd-num="min"]' ),
+			numHi: form.querySelector( '[data-wcd-num="max"]' ),
+			fill: form.querySelector( '[data-wcd-fill]' ),
+			boundMin: parseFloat( form.getAttribute( 'data-bound-min' ) ),
+			boundMax: parseFloat( form.getAttribute( 'data-bound-max' ) )
+		};
+	}
+
+	/**
+	 * Redraws the filled section and mirrors the values into the number fields.
+	 */
+	function paintRange( range ) {
+		var span = range.boundMax - range.boundMin;
+		var lo = parseFloat( range.lo.value );
+		var hi = parseFloat( range.hi.value );
+
+		if ( range.fill && span > 0 ) {
+			range.fill.style.left = ( ( lo - range.boundMin ) / span ) * 100 + '%';
+			range.fill.style.right = ( ( range.boundMax - hi ) / span ) * 100 + '%';
+		}
+
+		if ( range.numLo ) {
+			range.numLo.value = Math.round( lo );
+		}
+
+		if ( range.numHi ) {
+			range.numHi.value = Math.round( hi );
+		}
+	}
+
+	/**
+	 * Keeps the two handles from crossing over each other.
+	 */
+	function clampRange( range, moved ) {
+		var lo = parseFloat( range.lo.value );
+		var hi = parseFloat( range.hi.value );
+
+		if ( lo <= hi ) {
+			return;
+		}
+
+		// Whichever handle was dragged wins; the other is pushed to meet it,
+		// rather than the pair swapping and the handle jumping out from under
+		// the pointer.
+		if ( moved === 'min' ) {
+			range.hi.value = lo;
+		} else {
+			range.lo.value = hi;
+		}
+	}
+
+	function setupRange( scope, onChange ) {
+		var form = scope.querySelector( '[data-wcd-range]' );
+
+		if ( ! form ) {
+			return null;
+		}
+
+		var range = readRange( form );
+
+		if ( ! range ) {
+			return null;
+		}
+
+		paintRange( range );
+
+		[ [ range.lo, 'min' ], [ range.hi, 'max' ] ].forEach( function ( pair ) {
+			pair[ 0 ].addEventListener( 'input', function () {
+				clampRange( range, pair[ 1 ] );
+				paintRange( range );
+				onChange();
+			} );
+		} );
+
+		// Typing a number moves the matching handle.
+		[ [ range.numLo, range.lo ], [ range.numHi, range.hi ] ].forEach( function ( pair ) {
+			if ( ! pair[ 0 ] ) {
+				return;
+			}
+
+			pair[ 0 ].addEventListener( 'change', function () {
+				var value = parseFloat( pair[ 0 ].value );
+
+				if ( isNaN( value ) ) {
+					return;
+				}
+
+				pair[ 1 ].value = Math.min( range.boundMax, Math.max( range.boundMin, value ) );
+
+				clampRange( range, pair[ 1 ] === range.lo ? 'min' : 'max' );
+				paintRange( range );
+				onChange();
+			} );
+		} );
+
+		return range;
+	}
+
+	/**
+	 * The range as a URL value, or null when it still spans everything.
+	 */
+	function rangeValue( range ) {
+		if ( ! range ) {
+			return null;
+		}
+
+		var lo = Math.round( parseFloat( range.lo.value ) );
+		var hi = Math.round( parseFloat( range.hi.value ) );
+
+		if ( lo <= range.boundMin && hi >= range.boundMax ) {
+			return null;
+		}
+
+		return lo + '-' + hi;
+	}
+
 	/**
 	 * Reads the options currently ticked, grouped by parameter name.
 	 */
-	function collect( scope ) {
+	function collect( scope, range ) {
 		var groups = {};
 
 		scope.querySelectorAll( '.wcd-item.is-on > .wcd-opt' ).forEach( function ( option ) {
@@ -39,15 +174,21 @@
 			groups[ group ].push( value );
 		} );
 
+		var price = rangeValue( range );
+
+		if ( price ) {
+			groups.price = [ price ];
+		}
+
 		return groups;
 	}
 
 	/**
 	 * Builds the URL for the current selection.
 	 */
-	function buildUrl( scope ) {
+	function buildUrl( scope, range ) {
 		var base = config.baseUrl || window.location.pathname;
-		var groups = collect( scope );
+		var groups = collect( scope, range );
 		var parts = [];
 
 		Object.keys( groups ).forEach( function ( group ) {
@@ -66,7 +207,7 @@
 	/**
 	 * Keeps the Apply button honest about what it is going to do.
 	 */
-	function refreshApply( scope ) {
+	function refreshApply( scope, range ) {
 		var apply = scope.querySelector( '[data-wcd-apply]' );
 
 		if ( ! apply ) {
@@ -74,6 +215,12 @@
 		}
 
 		var total = scope.querySelectorAll( '.wcd-item.is-on' ).length;
+
+		// A narrowed price range counts as a filter too, or Apply would claim to
+		// show all products while quietly carrying one.
+		if ( rangeValue( range ) ) {
+			total += 1;
+		}
 
 		if ( total === 0 ) {
 			apply.textContent = strings.showAll || 'Show all products';
@@ -87,7 +234,7 @@
 	/**
 	 * Ticks or unticks one option without leaving the page.
 	 */
-	function toggle( scope, option ) {
+	function toggle( scope, option, range ) {
 		var item = option.closest( '.wcd-item' );
 
 		if ( ! item ) {
@@ -115,7 +262,7 @@
 		item.classList.toggle( 'is-on', ! isOn );
 		option.setAttribute( 'aria-pressed', isOn ? 'false' : 'true' );
 
-		refreshApply( scope );
+		refreshApply( scope, range );
 	}
 
 	/* --------------------------------------------------------------------
@@ -252,7 +399,23 @@
 		// because on a wide screen it is the sidebar.
 		var scope = root.getAttribute( 'data-mode' ) === 'drawer' ? portal( root ) : root;
 
-		refreshApply( scope );
+		var range = setupRange( scope, function () {
+			refreshApply( scope, range );
+		} );
+
+		refreshApply( scope, range );
+
+		// Enter in a number field submits the form. With the script running,
+		// that has to go through the same URL builder as Apply, or the other
+		// filters in the drawer would be dropped.
+		var form = scope.querySelector( '[data-wcd-range]' );
+
+		if ( form ) {
+			form.addEventListener( 'submit', function ( event ) {
+				event.preventDefault();
+				window.location.href = buildUrl( scope, range );
+			} );
+		}
 
 		var onClick = function ( event ) {
 			if ( event.target.closest( '[data-wcd-open]' ) ) {
@@ -271,7 +434,7 @@
 
 			if ( event.target.closest( '[data-wcd-apply]' ) ) {
 				event.preventDefault();
-				window.location.href = buildUrl( scope );
+				window.location.href = buildUrl( scope, range );
 
 				return;
 			}
@@ -282,7 +445,7 @@
 				// The href stays as the fallback for a browser without JS; here
 				// the choice is only remembered until Apply is pressed.
 				event.preventDefault();
-				toggle( scope, option );
+				toggle( scope, option, range );
 			}
 		};
 

@@ -59,7 +59,14 @@ class Settings {
 			// Expiry months offered in the filter, as YYYYMM strings.
 			'expiry_months'     => array(),
 
+			// How price is filtered.
+			//   slider  a two-handled range the shopper sets themselves
+			//   bands    fixed bands, configured below
+			'price_mode'        => 'slider',
+
 			// Price buckets as [min, max]; max of 0 means "and above".
+			// Used in bands mode, and as the no-JavaScript fallback for slider
+			// mode — a continuous range cannot be expressed as a plain link.
 			'price_buckets'     => array(),
 
 			// Product categories allowed in the category filter, as term IDs.

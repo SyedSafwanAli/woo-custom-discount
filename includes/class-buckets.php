@@ -256,11 +256,63 @@ class Buckets {
 	}
 
 	/**
-	 * Four price bands spanning the catalogue's actual range.
+	 * The cheapest and dearest price in the catalogue, widened to round figures.
 	 *
-	 * @return array<int,array{key:string,label:string,min:float,max:float}>
+	 * The slider's ends come from here, so they follow the real catalogue rather
+	 * than a number typed into a setting that goes stale. Rounding outward means
+	 * the ends read as 2,500 and 20,000 rather than 1,598 and 19,990 — and the
+	 * cheapest and dearest products stay reachable.
+	 *
+	 * @return array{min:float,max:float,step:float}
 	 */
-	public static function suggest_price_buckets(): array {
+	public static function price_bounds(): array {
+		$cached = get_transient( 'wcd_price_bounds' );
+
+		if ( is_array( $cached ) ) {
+			return $cached;
+		}
+
+		[ $min, $max ] = self::raw_price_range();
+
+		if ( $max <= $min ) {
+			$bounds = array(
+				'min'  => 0.0,
+				'max'  => 0.0,
+				'step' => 1.0,
+			);
+
+			set_transient( 'wcd_price_bounds', $bounds, HOUR_IN_SECONDS );
+
+			return $bounds;
+		}
+
+		$span = $max - $min;
+		$step = self::round_step( $span / 40 );
+
+		$bounds = array(
+			'min'  => (float) max( 0, floor( $min / $step ) * $step ),
+			'max'  => (float) ( ceil( $max / $step ) * $step ),
+			'step' => $step,
+		);
+
+		set_transient( 'wcd_price_bounds', $bounds, HOUR_IN_SECONDS );
+
+		return $bounds;
+	}
+
+	/**
+	 * Forgets the cached bounds. Called when prices change.
+	 */
+	public static function flush_price_bounds(): void {
+		delete_transient( 'wcd_price_bounds' );
+	}
+
+	/**
+	 * The unrounded cheapest and dearest published price.
+	 *
+	 * @return array{0:float,1:float}
+	 */
+	private static function raw_price_range(): array {
 		global $wpdb;
 
 		$row = $wpdb->get_row(
@@ -275,8 +327,16 @@ class Buckets {
 			ARRAY_A
 		);
 
-		$min = (float) ( $row['min_price'] ?? 0 );
-		$max = (float) ( $row['max_price'] ?? 0 );
+		return array( (float) ( $row['min_price'] ?? 0 ), (float) ( $row['max_price'] ?? 0 ) );
+	}
+
+	/**
+	 * Four price bands spanning the catalogue's actual range.
+	 *
+	 * @return array<int,array{key:string,label:string,min:float,max:float}>
+	 */
+	public static function suggest_price_buckets(): array {
+		[ $min, $max ] = self::raw_price_range();
 
 		if ( $max <= $min ) {
 			return array();
@@ -320,17 +380,32 @@ class Buckets {
 	}
 
 	/**
-	 * Rounds a step up to a tidy figure: 500, 1000, 2500 and so on.
+	 * Rounds a figure up to the next 1, 2 or 5 times a power of ten.
+	 *
+	 * Shoppers read 500 and 5,000; they do not read 385 or 3,848. Snapping to
+	 * this small set of figures is what keeps the slider's step and the suggested
+	 * bands looking chosen rather than calculated.
 	 */
-	private static function round_step( float $value ): float {
+	public static function round_step( float $value ): float {
 		if ( $value <= 0 ) {
 			return 0.0;
 		}
 
-		$magnitude = 10 ** max( 0, (int) floor( log10( $value ) ) );
-		$rounded   = ceil( $value / ( $magnitude / 2 ) ) * ( $magnitude / 2 );
+		$exponent = (int) floor( log10( $value ) );
+		$power    = 10 ** $exponent;
+		$base     = $value / $power;
 
-		return (float) max( 1, $rounded );
+		if ( $base <= 1 ) {
+			$nice = 1;
+		} elseif ( $base <= 2 ) {
+			$nice = 2;
+		} elseif ( $base <= 5 ) {
+			$nice = 5;
+		} else {
+			$nice = 10;
+		}
+
+		return (float) max( 1, $nice * $power );
 	}
 
 	/**

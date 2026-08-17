@@ -381,6 +381,196 @@
 }
 
 /* ========================================================================
+   Price range slider
+
+   Two real `input type="range"` stacked over one track. Two inputs rather than a
+   div-and-drag widget because each is focusable and works from the keyboard for
+   free — arrow keys, Home, End — which a hand-rolled one would have to reinvent
+   and usually doesn't.
+   ===================================================================== */
+
+.wcd-filter .wcd-range {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	background: none;
+}
+
+/* The slider needs script to keep the two handles in step, so it stays hidden
+   until the script has confirmed it is running. The number fields below work on
+   their own either way. */
+.wcd-filter .wcd-range__slider {
+	display: none;
+}
+
+.wcd-filter.wcd-js .wcd-range__slider {
+	display: block;
+	position: relative;
+	height: 26px;
+	margin: 0.15em 0 0.9em;
+}
+
+.wcd-filter .wcd-range__track,
+.wcd-filter .wcd-range__fill {
+	position: absolute;
+	top: 50%;
+	height: 4px;
+	margin-top: -2px;
+	border-radius: 2px;
+}
+
+.wcd-filter .wcd-range__track {
+	left: 0;
+	right: 0;
+	background: var( --wcd-line );
+}
+
+.wcd-filter .wcd-range__fill {
+	background: var( --wcd-green );
+}
+
+/* Both inputs cover the full track; only their handles take the pointer, so the
+   one underneath is still reachable. */
+.wcd-filter input.wcd-range__thumb {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: 26px;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	pointer-events: none;
+	-webkit-appearance: none;
+	appearance: none;
+}
+
+.wcd-filter input.wcd-range__thumb:focus {
+	outline: none;
+}
+
+.wcd-filter input.wcd-range__thumb::-webkit-slider-thumb {
+	pointer-events: auto;
+	width: 18px;
+	height: 18px;
+	border: 2px solid var( --wcd-green-strong );
+	border-radius: 50%;
+	background: var( --wcd-surface );
+	box-shadow: 0 1px 3px rgba( 30, 36, 25, 0.25 );
+	cursor: grab;
+	-webkit-appearance: none;
+	appearance: none;
+}
+
+.wcd-filter input.wcd-range__thumb::-moz-range-thumb {
+	pointer-events: auto;
+	width: 18px;
+	height: 18px;
+	border: 2px solid var( --wcd-green-strong );
+	border-radius: 50%;
+	background: var( --wcd-surface );
+	box-shadow: 0 1px 3px rgba( 30, 36, 25, 0.25 );
+	cursor: grab;
+}
+
+.wcd-filter input.wcd-range__thumb:focus-visible::-webkit-slider-thumb {
+	box-shadow: 0 0 0 4px var( --wcd-green-soft );
+}
+
+.wcd-filter input.wcd-range__thumb:focus-visible::-moz-range-thumb {
+	box-shadow: 0 0 0 4px var( --wcd-green-soft );
+}
+
+.wcd-filter input.wcd-range__thumb::-moz-range-track {
+	background: transparent;
+	border: 0;
+}
+
+/* --- The two number fields ---------------------------------------------- */
+
+.wcd-filter .wcd-range__fields {
+	display: flex;
+	align-items: center;
+	gap: 0.5em;
+}
+
+.wcd-filter .wcd-range__field {
+	display: flex;
+	align-items: center;
+	gap: 0.25em;
+	flex: 1 1 0;
+	min-width: 0;
+	margin: 0;
+	padding: 0.42em 0.6em;
+	border: 1px solid var( --wcd-line );
+	border-radius: 5px;
+	background: var( --wcd-surface );
+}
+
+.wcd-filter .wcd-range__field:focus-within {
+	border-color: var( --wcd-green );
+	box-shadow: 0 0 0 3px var( --wcd-green-soft );
+}
+
+.wcd-filter .wcd-range__prefix {
+	flex: 0 0 auto;
+	font-size: 0.82em;
+	color: var( --wcd-ink-3 );
+}
+
+.wcd-filter input.wcd-range__field-input,
+.wcd-filter .wcd-range__field input[type="number"] {
+	width: 100%;
+	min-width: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	color: var( --wcd-ink );
+	font: inherit;
+	font-size: 0.9em;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	box-shadow: none;
+	-moz-appearance: textfield;
+}
+
+.wcd-filter .wcd-range__field input[type="number"]:focus {
+	outline: none;
+	box-shadow: none;
+}
+
+.wcd-filter .wcd-range__field input[type="number"]::-webkit-outer-spin-button,
+.wcd-filter .wcd-range__field input[type="number"]::-webkit-inner-spin-button {
+	-webkit-appearance: none;
+	margin: 0;
+}
+
+.wcd-filter .wcd-range__dash {
+	flex: 0 0 auto;
+	color: var( --wcd-ink-3 );
+}
+
+/* Only needed without script; Apply covers it otherwise. */
+.wcd-filter button.wcd-range__go {
+	flex: 0 0 auto;
+	padding: 0.5em 0.9em;
+	border: 1px solid var( --wcd-green-strong );
+	border-radius: 5px;
+	background: var( --wcd-green-strong );
+	color: #fff;
+	font: inherit;
+	font-size: 0.85em;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.wcd-filter.wcd-js button.wcd-range__go {
+	display: none;
+}
+
+/* ========================================================================
    Buttons
    ===================================================================== */
 

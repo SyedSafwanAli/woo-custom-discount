@@ -38,6 +38,14 @@ class Filter_Query {
 	public const PARAM_SORT     = 'sort';
 
 	/**
+	 * The slider's own fields, so it still works with JavaScript off: a plain
+	 * form cannot join two numbers into one parameter, so it submits them
+	 * separately and they are read here as well as the tidy combined form.
+	 */
+	public const PARAM_PRICE_MIN = 'price_min';
+	public const PARAM_PRICE_MAX = 'price_max';
+
+	/**
 	 * Hooks the query filters.
 	 */
 	public static function init(): void {
@@ -113,9 +121,18 @@ class Filter_Query {
 			self::PARAM_EXPIRY,
 			self::PARAM_CATEGORY,
 			self::PARAM_PRICE,
+			self::PARAM_PRICE_MIN,
+			self::PARAM_PRICE_MAX,
 			self::PARAM_STOCK,
 			self::PARAM_SORT,
 		);
+	}
+
+	/**
+	 * Whether price is filtered with a slider rather than fixed bands.
+	 */
+	public static function price_is_slider(): bool {
+		return (string) Settings::get( 'price_mode', 'slider' ) === 'slider';
 	}
 
 	/**
@@ -148,6 +165,8 @@ class Filter_Query {
 		$sort  = $raw( self::PARAM_SORT );
 		$sorts = array_keys( self::sort_options() );
 
+		$slider = self::price_is_slider();
+
 		return array(
 			'discount' => array_map( 'sanitize_key', $split( $raw( self::PARAM_DISCOUNT ) ) ),
 			'expiry'   => array_values(
@@ -157,9 +176,55 @@ class Filter_Query {
 				)
 			),
 			'category' => array_map( 'intval', $split( $raw( self::PARAM_CATEGORY ) ) ),
-			'price'    => array_map( 'sanitize_key', $split( $raw( self::PARAM_PRICE ) ) ),
+			// Bands and slider both live on the `price` parameter, and a band key
+			// such as "6000-10000" is indistinguishable from a slider range. The
+			// configured mode decides which reading applies, so only one of these
+			// is ever populated.
+			'price'    => $slider ? array() : array_map( 'sanitize_key', $split( $raw( self::PARAM_PRICE ) ) ),
+			'price_range' => $slider
+				? self::parse_price_range( $raw( self::PARAM_PRICE ), $raw( self::PARAM_PRICE_MIN ), $raw( self::PARAM_PRICE_MAX ) )
+				: array(
+					'min' => null,
+					'max' => null,
+				),
 			'instock'  => $raw( self::PARAM_STOCK ) === '1',
 			'sort'     => in_array( $sort, $sorts, true ) ? $sort : '',
+		);
+	}
+
+	/**
+	 * Reads a price range from either the combined or the separate parameters.
+	 *
+	 * Accepts "4500-9200", "-6000" and "14000-", so an open-ended range is still
+	 * expressible in a link.
+	 *
+	 * @return array{min:?float,max:?float}
+	 */
+	private static function parse_price_range( string $combined, string $min_param, string $max_param ): array {
+		$min = null;
+		$max = null;
+
+		if ( $combined !== '' && preg_match( '/^(\d+(?:\.\d+)?)?\s*-\s*(\d+(?:\.\d+)?)?$/', $combined, $m ) ) {
+			$min = ( isset( $m[1] ) && $m[1] !== '' ) ? (float) $m[1] : null;
+			$max = ( isset( $m[2] ) && $m[2] !== '' ) ? (float) $m[2] : null;
+		}
+
+		if ( $min_param !== '' && is_numeric( $min_param ) ) {
+			$min = (float) $min_param;
+		}
+
+		if ( $max_param !== '' && is_numeric( $max_param ) ) {
+			$max = (float) $max_param;
+		}
+
+		// Typed in backwards, it would match nothing at all.
+		if ( $min !== null && $max !== null && $min > $max ) {
+			[ $min, $max ] = array( $max, $min );
+		}
+
+		return array(
+			'min' => $min,
+			'max' => $max,
 		);
 	}
 
@@ -173,6 +238,8 @@ class Filter_Query {
 			|| $s['expiry'] !== array()
 			|| $s['category'] !== array()
 			|| $s['price'] !== array()
+			|| $s['price_range']['min'] !== null
+			|| $s['price_range']['max'] !== null
 			|| $s['instock']
 			|| $s['sort'] !== '';
 	}
@@ -332,6 +399,30 @@ class Filter_Query {
 			}
 		}
 
+		// --- Price range from the slider -------------------------------------
+		$range = $s['price_range'] ?? array(
+			'min' => null,
+			'max' => null,
+		);
+
+		if ( $range['min'] !== null || $range['max'] !== null ) {
+			if ( $range['min'] !== null && $range['max'] !== null ) {
+				$clauses[] = array(
+					'key'     => '_price',
+					'value'   => array( $range['min'], $range['max'] ),
+					'type'    => 'DECIMAL(12,2)',
+					'compare' => 'BETWEEN',
+				);
+			} else {
+				$clauses[] = array(
+					'key'     => '_price',
+					'value'   => $range['min'] ?? $range['max'],
+					'type'    => 'DECIMAL(12,2)',
+					'compare' => $range['min'] !== null ? '>=' : '<=',
+				);
+			}
+		}
+
 		// --- In stock only ---------------------------------------------------
 		if ( $s['instock'] ) {
 			$clauses[] = array(
@@ -453,6 +544,26 @@ class Filter_Query {
 	 */
 	public static function clear_url(): string {
 		return self::base_url();
+	}
+
+	/**
+	 * The current URL with the named parameters dropped.
+	 *
+	 * The slider spans three parameters, so removing it needs more than the
+	 * single-value toggle.
+	 *
+	 * @param string[] $params Parameter names to remove.
+	 */
+	public static function without( array $params ): string {
+		$args = self::current_args();
+
+		foreach ( $params as $name ) {
+			unset( $args[ $name ] );
+		}
+
+		$base = self::base_url();
+
+		return $args === array() ? $base : add_query_arg( $args, $base );
 	}
 
 	/**

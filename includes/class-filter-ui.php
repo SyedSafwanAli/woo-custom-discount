@@ -409,9 +409,123 @@ class Filter_UI {
 	}
 
 	/**
-	 * Price bands.
+	 * Price — either a slider the shopper sets, or fixed bands.
 	 */
 	private static function price_group(): string {
+		return Filter_Query::price_is_slider() ? self::price_slider() : self::price_bands();
+	}
+
+	/**
+	 * A two-handled range the shopper sets themselves.
+	 *
+	 * Built as a real form around two `input type="range"` and two number
+	 * fields. The form is what makes it work with JavaScript switched off — a
+	 * continuous range cannot be expressed as a link, so the number fields and a
+	 * Go button carry it, and the script hides the button and takes over.
+	 */
+	private static function price_slider(): string {
+		$bounds = Buckets::price_bounds();
+
+		if ( $bounds['max'] <= $bounds['min'] ) {
+			return '';
+		}
+
+		$range = Filter_Query::selection()['price_range'];
+		$low   = $range['min'] ?? $bounds['min'];
+		$high  = $range['max'] ?? $bounds['max'];
+
+		// A value from the URL could sit outside today's catalogue range.
+		$low  = max( $bounds['min'], min( $bounds['max'], (float) $low ) );
+		$high = max( $bounds['min'], min( $bounds['max'], (float) $high ) );
+
+		$symbol = html_entity_decode( get_woocommerce_currency_symbol(), ENT_QUOTES, 'UTF-8' );
+
+		$hidden = '';
+
+		foreach ( Filter_Query::current_args() as $name => $value ) {
+			if ( in_array( $name, array( Filter_Query::PARAM_PRICE, Filter_Query::PARAM_PRICE_MIN, Filter_Query::PARAM_PRICE_MAX ), true ) ) {
+				continue;
+			}
+
+			$hidden .= sprintf(
+				'<input type="hidden" name="%1$s" value="%2$s">',
+				esc_attr( $name ),
+				esc_attr( $value )
+			);
+		}
+
+		ob_start();
+		?>
+		<div class="wcd-group wcd-group--price">
+			<p class="wcd-group__title"><?php esc_html_e( 'Price', 'woo-custom-discount' ); ?></p>
+
+			<form class="wcd-range" method="get" action="<?php echo esc_url( Filter_Query::base_url() ); ?>"
+				data-wcd-range
+				data-bound-min="<?php echo esc_attr( (string) $bounds['min'] ); ?>"
+				data-bound-max="<?php echo esc_attr( (string) $bounds['max'] ); ?>"
+				data-step="<?php echo esc_attr( (string) $bounds['step'] ); ?>">
+
+				<div class="wcd-range__slider">
+					<span class="wcd-range__track" aria-hidden="true"></span>
+					<span class="wcd-range__fill" data-wcd-fill aria-hidden="true"></span>
+
+					<input type="range" class="wcd-range__thumb" data-wcd-thumb="min"
+						min="<?php echo esc_attr( (string) $bounds['min'] ); ?>"
+						max="<?php echo esc_attr( (string) $bounds['max'] ); ?>"
+						step="<?php echo esc_attr( (string) $bounds['step'] ); ?>"
+						value="<?php echo esc_attr( (string) $low ); ?>"
+						aria-label="<?php esc_attr_e( 'Lowest price', 'woo-custom-discount' ); ?>">
+
+					<input type="range" class="wcd-range__thumb" data-wcd-thumb="max"
+						min="<?php echo esc_attr( (string) $bounds['min'] ); ?>"
+						max="<?php echo esc_attr( (string) $bounds['max'] ); ?>"
+						step="<?php echo esc_attr( (string) $bounds['step'] ); ?>"
+						value="<?php echo esc_attr( (string) $high ); ?>"
+						aria-label="<?php esc_attr_e( 'Highest price', 'woo-custom-discount' ); ?>">
+				</div>
+
+				<div class="wcd-range__fields">
+					<label class="wcd-range__field">
+						<span class="wcd-range__prefix"><?php echo esc_html( $symbol ); ?></span>
+						<input type="number" name="<?php echo esc_attr( Filter_Query::PARAM_PRICE_MIN ); ?>"
+							data-wcd-num="min" inputmode="numeric"
+							min="<?php echo esc_attr( (string) $bounds['min'] ); ?>"
+							max="<?php echo esc_attr( (string) $bounds['max'] ); ?>"
+							step="<?php echo esc_attr( (string) $bounds['step'] ); ?>"
+							value="<?php echo esc_attr( (string) round( $low ) ); ?>"
+							aria-label="<?php esc_attr_e( 'Lowest price', 'woo-custom-discount' ); ?>">
+					</label>
+
+					<span class="wcd-range__dash" aria-hidden="true">&ndash;</span>
+
+					<label class="wcd-range__field">
+						<span class="wcd-range__prefix"><?php echo esc_html( $symbol ); ?></span>
+						<input type="number" name="<?php echo esc_attr( Filter_Query::PARAM_PRICE_MAX ); ?>"
+							data-wcd-num="max" inputmode="numeric"
+							min="<?php echo esc_attr( (string) $bounds['min'] ); ?>"
+							max="<?php echo esc_attr( (string) $bounds['max'] ); ?>"
+							step="<?php echo esc_attr( (string) $bounds['step'] ); ?>"
+							value="<?php echo esc_attr( (string) round( $high ) ); ?>"
+							aria-label="<?php esc_attr_e( 'Highest price', 'woo-custom-discount' ); ?>">
+					</label>
+
+					<button type="submit" class="wcd-range__go">
+						<?php esc_html_e( 'Go', 'woo-custom-discount' ); ?>
+					</button>
+				</div>
+
+				<?php echo $hidden; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped when built. ?>
+			</form>
+		</div>
+		<?php
+
+		return (string) ob_get_clean();
+	}
+
+	/**
+	 * Fixed price bands.
+	 */
+	private static function price_bands(): string {
 		$buckets = Buckets::price_buckets();
 
 		if ( $buckets === array() ) {
@@ -585,6 +699,21 @@ class Filter_UI {
 			}
 		}
 
+		$range = $selection['price_range'];
+
+		if ( $range['min'] !== null || $range['max'] !== null ) {
+			$chips[] = array(
+				'label' => self::price_range_label( $range['min'], $range['max'] ),
+				'url'   => Filter_Query::without(
+					array(
+						Filter_Query::PARAM_PRICE,
+						Filter_Query::PARAM_PRICE_MIN,
+						Filter_Query::PARAM_PRICE_MAX,
+					)
+				),
+			);
+		}
+
 		if ( $selection['instock'] ) {
 			$chips[] = array(
 				'label' => __( 'In stock only', 'woo-custom-discount' ),
@@ -604,6 +733,30 @@ class Filter_UI {
 		}
 
 		return $chips;
+	}
+
+	/**
+	 * A readable label for a chosen price range.
+	 */
+	private static function price_range_label( ?float $min, ?float $max ): string {
+		$money = static function ( float $amount ): string {
+			$symbol = html_entity_decode( get_woocommerce_currency_symbol(), ENT_QUOTES, 'UTF-8' );
+
+			return trim( $symbol . ' ' . number_format( $amount ) );
+		};
+
+		if ( $min !== null && $max !== null ) {
+			/* translators: 1: lowest price, 2: highest price. */
+			return sprintf( __( '%1$s – %2$s', 'woo-custom-discount' ), $money( $min ), $money( $max ) );
+		}
+
+		if ( $min !== null ) {
+			/* translators: %s: price. */
+			return sprintf( __( '%s and above', 'woo-custom-discount' ), $money( $min ) );
+		}
+
+		/* translators: %s: price. */
+		return sprintf( __( 'Up to %s', 'woo-custom-discount' ), $money( (float) $max ) );
 	}
 
 	/**
