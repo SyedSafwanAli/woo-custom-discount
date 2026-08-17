@@ -125,9 +125,30 @@ class Filter_UI {
 
 	/**
 	 * Prints the filter above the product grid.
+	 *
+	 * Stands down when the page already carries the shortcode. A Divi-built shop
+	 * page runs its product grid through the same WooCommerce hooks, so a page
+	 * with `[wcd_filter]` in it would otherwise get a second copy of the panel
+	 * added automatically.
 	 */
 	public static function output_on_shop(): void {
+		if ( self::page_has_shortcode() ) {
+			return;
+		}
+
 		echo self::render( array( 'layout' => 'inline' ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- built with escaped parts.
+	}
+
+	/**
+	 * Whether the page being viewed places the filter itself.
+	 *
+	 * Divi stores its layout as shortcodes inside the post content, so a filter
+	 * dropped into a Divi module is found here just the same.
+	 */
+	private static function page_has_shortcode(): bool {
+		$post = get_post();
+
+		return $post instanceof \WP_Post && has_shortcode( (string) $post->post_content, 'wcd_filter' );
 	}
 
 	/**
@@ -242,13 +263,14 @@ class Filter_UI {
 		$selected = Filter_Query::selection()['expiry'];
 		$options  = array();
 
-		foreach ( $available as $ym => $count ) {
+		foreach ( array_keys( $available ) as $ym ) {
+			// The count is left for the shared path to work out, so every group
+			// counts the same way the shop does.
 			$options[] = array(
 				'value' => (string) $ym,
 				'label' => Importer::format_expiry( (string) $ym ),
 				'group' => Filter_Query::PARAM_EXPIRY,
 				'on'    => in_array( (string) $ym, $selected, true ),
-				'count' => $count,
 			);
 		}
 
@@ -269,12 +291,13 @@ class Filter_UI {
 		$options  = array();
 
 		foreach ( $terms as $term ) {
+			// WordPress's own term count includes products hidden from the
+			// catalogue, so it is left out and the shared path counts instead.
 			$options[] = array(
 				'value' => (string) $term->term_id,
 				'label' => $term->name,
 				'group' => Filter_Query::PARAM_CATEGORY,
 				'on'    => in_array( (int) $term->term_id, $selected, true ),
-				'count' => (int) $term->count,
 			);
 		}
 

@@ -308,6 +308,9 @@ class Price_Engine {
 
 		self::schedule_rule_endings();
 
+		// Prices moved, so every cached filter count is now suspect.
+		Filter_Query::bump_counts_version();
+
 		Install::flush_caches();
 
 		return $stats;
@@ -395,6 +398,8 @@ class Price_Engine {
 				}
 			}
 		}
+
+		Filter_Query::bump_counts_version();
 
 		Install::flush_caches();
 

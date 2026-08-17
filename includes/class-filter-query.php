@@ -507,7 +507,19 @@ class Filter_Query {
 	 * selected. Used for the counts beside each checkbox.
 	 */
 	public static function count_for( string $group, string $value ): int {
-		$key = 'wcd_count_' . md5( $group . '|' . $value . '|' . wp_json_encode( self::current_args() ) );
+		// The version stamp is bumped whenever prices change, so a stale count
+		// cannot outlive the data it describes.
+		$key = 'wcd_count_' . md5(
+			implode(
+				'|',
+				array(
+					$group,
+					$value,
+					(string) wp_json_encode( self::current_args() ),
+					(string) get_option( 'wcd_counts_version', '0' ),
+				)
+			)
+		);
 
 		$cached = get_transient( $key );
 
@@ -521,6 +533,10 @@ class Filter_Query {
 			'fields'         => 'ids',
 			'posts_per_page' => -1,
 			'no_found_rows'  => false,
+			// Count what the shop would actually show. A product the owner has
+			// hidden from the catalogue must not be counted, or the label would
+			// promise twenty products and the grid deliver nineteen.
+			'tax_query'      => self::visibility_clauses(),
 		);
 
 		$selection = self::selection();
@@ -550,13 +566,11 @@ class Filter_Query {
 		}
 
 		if ( $selection['category'] !== array() ) {
-			$args['tax_query'] = array(
-				array(
-					'taxonomy'         => 'product_cat',
-					'field'            => 'term_id',
-					'terms'            => $selection['category'],
-					'include_children' => true,
-				),
+			$args['tax_query'][] = array(
+				'taxonomy'         => 'product_cat',
+				'field'            => 'term_id',
+				'terms'            => $selection['category'],
+				'include_children' => true,
 			);
 		}
 
@@ -569,8 +583,54 @@ class Filter_Query {
 		$query = new \WP_Query( $args );
 		$count = (int) $query->found_posts;
 
-		set_transient( $key, $count, 10 * MINUTE_IN_SECONDS );
+		set_transient( $key, $count, HOUR_IN_SECONDS );
 
 		return $count;
+	}
+
+	/**
+	 * The catalogue-visibility conditions WooCommerce applies to the shop.
+	 *
+	 * Counting without these would report products the shop refuses to show.
+	 *
+	 * @return array<int,array<string,mixed>>
+	 */
+	private static function visibility_clauses(): array {
+		if ( ! function_exists( 'wc_get_product_visibility_term_ids' ) ) {
+			return array();
+		}
+
+		$ids     = wc_get_product_visibility_term_ids();
+		$clauses = array();
+
+		if ( ! empty( $ids['exclude-from-catalog'] ) ) {
+			$clauses[] = array(
+				'taxonomy' => 'product_visibility',
+				'field'    => 'term_taxonomy_id',
+				'terms'    => array( $ids['exclude-from-catalog'] ),
+				'operator' => 'NOT IN',
+			);
+		}
+
+		if ( get_option( 'woocommerce_hide_out_of_stock_items' ) === 'yes' && ! empty( $ids['outofstock'] ) ) {
+			$clauses[] = array(
+				'taxonomy' => 'product_visibility',
+				'field'    => 'term_taxonomy_id',
+				'terms'    => array( $ids['outofstock'] ),
+				'operator' => 'NOT IN',
+			);
+		}
+
+		return $clauses;
+	}
+
+	/**
+	 * Invalidates every cached count.
+	 *
+	 * Bumping a version stamp beats hunting down dozens of transient keys, one
+	 * per option and filter combination.
+	 */
+	public static function bump_counts_version(): void {
+		update_option( 'wcd_counts_version', (string) time(), false );
 	}
 }
