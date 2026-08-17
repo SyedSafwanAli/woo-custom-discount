@@ -1,0 +1,18 @@
+# Build and dependency output
+node_modules/
+vendor/
+*.zip
+
+# Logs and local scratch
+*.log
+.env
+.env.*
+
+# Editor and OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
