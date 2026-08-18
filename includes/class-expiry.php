@@ -203,6 +203,33 @@ class Expiry {
 	 *
 	 * @return array<string,int> YYYYMM => product count.
 	 */
+	/**
+	 * Every month there is a batch for, whether or not it holds anything yet.
+	 *
+	 * available_months() answers what the shop can offer today, and a month with
+	 * nothing in it is not something to offer a customer. But the owner building
+	 * the filter is working ahead: a batch created for a month that has not been
+	 * stocked yet is still a month they mean to use, and leaving it out of the
+	 * list makes it look as though the batch was never made.
+	 *
+	 * @return array<string,int> Month as YYYYMM => product count, oldest first.
+	 */
+	public static function all_months(): array {
+		$months = self::available_months();
+
+		foreach ( Rules::query( array( 'type' => Rules::TYPE_BATCH, 'enabled' => true ) ) as $batch ) {
+			$ym = (string) $batch['expiry_ym'];
+
+			if ( $ym !== '' && ! isset( $months[ $ym ] ) ) {
+				$months[ $ym ] = 0;
+			}
+		}
+
+		ksort( $months );
+
+		return $months;
+	}
+
 	public static function available_months(): array {
 		global $wpdb;
 

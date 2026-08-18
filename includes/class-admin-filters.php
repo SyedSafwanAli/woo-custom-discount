@@ -35,7 +35,9 @@ class Admin_Filters {
 	public static function render(): void {
 		$discount_buckets = Buckets::discount_buckets();
 		$price_buckets    = Buckets::price_buckets();
-		$months           = Expiry::available_months();
+		// Every batch's month, not only the ones already stocked — this screen is
+		// where the owner works ahead of the catalogue.
+		$months           = Expiry::all_months();
 		$chosen_months    = array_map( 'strval', (array) Settings::get( 'expiry_months', array() ) );
 		$chosen_cats      = array_map( 'intval', (array) Settings::get( 'filter_categories', array() ) );
 		$groups           = (array) Settings::get( 'filter_groups', array() );
@@ -220,16 +222,23 @@ class Admin_Filters {
 			echo '</p>';
 		} else {
 			echo '<p class="description">';
-			esc_html_e( 'Tick the months to offer. Leave all unticked to offer whichever months have products.', 'woo-custom-discount' );
+			esc_html_e( 'Every month you have a batch for. Tick the ones to offer, including months you have not stocked yet — each appears in the shop the day it has products. Leave all unticked to offer whichever months have products.', 'woo-custom-discount' );
 			echo '</p>';
 
 			foreach ( $months as $ym => $count ) {
+				// An empty month is worth showing here and worth saying so: the
+				// batch exists, the shop is simply not offering it yet.
+				$note = $count > 0
+					/* translators: %d: number of products. */
+					? sprintf( _n( '(%d product)', '(%d products)', (int) $count, 'woo-custom-discount' ), (int) $count )
+					: __( '(no products yet)', 'woo-custom-discount' );
+
 				printf(
-					'<label class="wcd-check"><input type="checkbox" name="expiry_months[]" value="%1$s"%2$s> %3$s <span class="description">(%4$d)</span></label>',
+					'<label class="wcd-check"><input type="checkbox" name="expiry_months[]" value="%1$s"%2$s> %3$s <span class="description">%4$s</span></label>',
 					esc_attr( (string) $ym ),
 					in_array( (string) $ym, $chosen_months, true ) ? ' checked' : '',
 					esc_html( Importer::format_expiry( (string) $ym ) ),
-					(int) $count
+					esc_html( $note )
 				);
 			}
 		}
