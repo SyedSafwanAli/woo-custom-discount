@@ -483,12 +483,21 @@
 	min-width: 18em;
 }
 
-/* Many batches make many columns; the table scrolls rather than the page. */
+/* Capped, because stretched to the full width of a wide screen the checkboxes
+   end up a hand's width from the product they belong to. */
 .wcd-admin .wcd-grid-wrap {
-	max-width: 100%;
-	overflow-x: auto;
+	max-width: 1120px;
 	border: 1px solid #dcdcde;
-	border-radius: 4px;
+	/* Square at the bottom: the sticky Save bar sits flush underneath. */
+	border-radius: 4px 4px 0 0;
+}
+
+/* Only scroll sideways when the columns genuinely do not fit. A scroll
+   container on every screen would also stop the header sticking. */
+@media ( max-width: 1180px ) {
+	.wcd-admin .wcd-grid-wrap {
+		overflow-x: auto;
+	}
 }
 
 .wcd-admin table.wcd-grid {
@@ -503,8 +512,21 @@
 	vertical-align: bottom;
 }
 
+/* The column titles have to stay in view: twenty rows down, a bare column of
+   checkboxes says nothing about which month it is. */
+@media ( min-width: 1181px ) {
+	.wcd-admin table.wcd-grid thead th {
+		position: sticky;
+		top: 32px;
+		z-index: 2;
+		background: #f6f7f7;
+		box-shadow: inset 0 -1px 0 #c3c4c7;
+	}
+}
+
 .wcd-admin .wcd-grid-name {
-	min-width: 22em;
+	width: 40%;
+	min-width: 18em;
 }
 
 .wcd-admin .wcd-grid-name a {
@@ -558,24 +580,42 @@
 	opacity: 0.55;
 }
 
+/* The batch columns are fenced off so it is obvious which one a tick is in. */
+.wcd-admin th.wcd-grid-batch,
+.wcd-admin td.wcd-grid-cell {
+	border-left: 1px solid #e6e7e9;
+}
+
+.wcd-admin th.wcd-grid-batch:first-of-type,
+.wcd-admin td.wcd-grid-cell:first-of-type {
+	border-left: 2px solid #dcdcde;
+}
+
 .wcd-admin td.wcd-grid-cell {
 	text-align: center;
 	vertical-align: middle;
+	padding: 0;
 }
 
 /* A bigger hit area than the checkbox itself — this grid gets a lot of clicks. */
 .wcd-admin td.wcd-grid-cell label {
 	display: block;
-	padding: 0.4em 0;
+	padding: 0.85em 0;
 	cursor: pointer;
 }
 
 .wcd-admin td.wcd-grid-cell label:hover {
-	background: #f6f8ef;
+	background: #eef3e0;
 }
 
 .wcd-admin td.wcd-grid-cell input {
 	margin: 0;
+}
+
+/* Following a row across to the right column is the whole job here, so the
+   whole row lights up rather than just the cell under the pointer. */
+.wcd-admin table.wcd-grid tbody tr:hover > td {
+	background: #f6f8ef;
 }
 
 .wcd-admin .wcd-grid-pct {
@@ -595,8 +635,51 @@
 	color: #c3c4c7;
 }
 
+/* Sticks to the bottom of the window, so Save is reachable from any row rather
+   than only after scrolling to the end of the page. */
 .wcd-admin .wcd-grid-actions {
-	margin: 1.25em 0;
+	position: sticky;
+	bottom: 0;
+	z-index: 3;
+	display: flex;
+	align-items: center;
+	gap: 0.75em;
+	max-width: 1120px;
+	margin: 0;
+	padding: 0.9em 1em;
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-top: 0;
+	border-radius: 0 0 4px 4px;
+	box-shadow: 0 -2px 8px rgba( 0, 0, 0, 0.05 );
+}
+
+.wcd-admin .wcd-grid-actions .description {
+	margin: 0;
+}
+
+.wcd-admin .wcd-grid-nav {
+	max-width: 1120px;
+	margin: 0;
+	padding: 0.5em 0;
+}
+
+.wcd-admin .wcd-grid-nav--top {
+	margin-bottom: 0.5em;
+}
+
+.wcd-admin .wcd-grid-nav .tablenav-pages {
+	float: none;
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 0.5em;
+	margin: 0;
+	height: auto;
+}
+
+.wcd-admin .wcd-grid-nav .displaying-num {
+	margin: 0;
 }
 
 /* --- Product panel ------------------------------------------------------- */

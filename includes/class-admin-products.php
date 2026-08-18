@@ -67,6 +67,8 @@ class Admin_Products {
 		$product_ids = array_map( 'intval', $query->posts );
 		$batch_map   = Rules::batch_map_for_products( $product_ids );
 
+		self::render_pagination( $query, 'top' );
+
 		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" class="wcd-grid-form">';
 		wp_nonce_field( 'wcd_save_products' );
 		echo '<input type="hidden" name="action" value="wcd_save_products">';
@@ -85,14 +87,16 @@ class Admin_Products {
 
 		self::render_table( $product_ids, $batches, $batch_map );
 
-		echo '<p class="wcd-grid-actions">';
+		// Sticky, because ticking your way down twenty-five rows and then having
+		// to hunt for Save is how a page of work gets lost.
+		echo '<div class="wcd-grid-actions">';
 		submit_button( __( 'Save this page', 'woo-custom-discount' ), 'primary', 'submit', false );
 		echo ' <span class="description">' . esc_html__( 'Only the products shown here are changed.', 'woo-custom-discount' ) . '</span>';
-		echo '</p>';
+		echo '</div>';
 
 		echo '</form>';
 
-		self::render_pagination( $query );
+		self::render_pagination( $query, 'bottom' );
 
 		wp_reset_postdata();
 	}
@@ -279,7 +283,7 @@ class Admin_Products {
 	 *
 	 * @param \WP_Query $query The product query.
 	 */
-	private static function render_pagination( \WP_Query $query ): void {
+	private static function render_pagination( \WP_Query $query, string $where = 'bottom' ): void {
 		if ( $query->max_num_pages < 2 ) {
 			return;
 		}
@@ -297,7 +301,7 @@ class Admin_Products {
 
 		if ( $links ) {
 			printf(
-				'<div class="tablenav"><div class="tablenav-pages">%1$s <span class="displaying-num">%2$s</span></div></div>',
+				'<div class="tablenav wcd-grid-nav wcd-grid-nav--%3$s"><div class="tablenav-pages"><span class="displaying-num">%2$s</span> %1$s</div></div>',
 				$links, // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- built by core.
 				esc_html(
 					sprintf(
@@ -305,7 +309,8 @@ class Admin_Products {
 						_n( '%d product', '%d products', (int) $query->found_posts, 'woo-custom-discount' ),
 						(int) $query->found_posts
 					)
-				)
+				),
+				esc_attr( $where )
 			);
 		}
 	}
@@ -345,7 +350,11 @@ class Admin_Products {
 
 		$query_args = array(
 			'post_type'      => 'product',
-			'post_status'    => array( 'publish', 'private', 'draft' ),
+			// The same statuses the price engine works on. Listing drafts here
+			// showed a discount beside a price that had not moved, because the
+			// engine never touches them — a number that looked like a bug in the
+			// pricing when it was only a bug in this list.
+			'post_status'    => array( 'publish', 'private' ),
 			'posts_per_page' => self::PER_PAGE,
 			'paged'          => self::current_page(),
 			'orderby'        => 'title',
