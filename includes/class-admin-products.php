@@ -308,6 +308,16 @@ class Admin_Products {
 		}
 
 		echo '</select>';
+
+		// The script shows this and stands the select down. Rendered here rather
+		// than built in JavaScript so its labels can be translated.
+		printf(
+			'<button type="button" class="wcd-plist__pick" data-wcd-pick data-search-label="%1$s" data-empty-label="%2$s">%3$s</button>',
+			esc_attr__( 'Search batches', 'woo-custom-discount' ),
+			esc_attr__( 'No batch matches that', 'woo-custom-discount' ),
+			esc_html__( '+ Add to batch', 'woo-custom-discount' )
+		);
+
 		echo '</div>';
 
 		printf( '<input type="hidden" name="shown[]" value="%d">', $product_id );

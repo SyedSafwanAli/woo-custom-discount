@@ -194,9 +194,173 @@
 		} );
 	}
 
+	/* --------------------------------------------------------------------
+	 * Finding a batch among many
+	 *
+	 * The picker stays a plain <select> in the markup: it is the record of what
+	 * can be added, it is what the change handler above listens to, and it is
+	 * what works with scripts off. This puts a searchable list in front of it and
+	 * hands the choice back to the select, so nothing below has to know.
+	 *
+	 * Three batches need no search. Thirty do, and scrolling a native dropdown
+	 * looking for one month is the thing this is here to stop.
+	 * ----------------------------------------------------------------- */
+
+	var openPicker = null;
+
+	function closePicker() {
+		if ( ! openPicker ) {
+			return;
+		}
+
+		openPicker.wrap.classList.remove( 'is-open' );
+		openPicker.pop.remove();
+		openPicker = null;
+	}
+
+	/**
+	 * The options a row can still add — the ones not already on it as chips.
+	 */
+	function availableOptions( select ) {
+		return Array.prototype.filter.call( select.options, function ( option ) {
+			return option.value && ! option.hidden;
+		} );
+	}
+
+	function buildPicker( wrap, select, button ) {
+		var pop = document.createElement( 'div' );
+		pop.className = 'wcd-pick';
+
+		var search = document.createElement( 'input' );
+		search.type = 'search';
+		search.className = 'wcd-pick__search';
+		search.placeholder = button.getAttribute( 'data-search-label' ) || 'Search batches';
+		search.setAttribute( 'aria-label', search.placeholder );
+
+		var list = document.createElement( 'div' );
+		list.className = 'wcd-pick__list';
+
+		var empty = document.createElement( 'p' );
+		empty.className = 'wcd-pick__empty';
+		empty.textContent = button.getAttribute( 'data-empty-label' ) || 'Nothing matches';
+		empty.hidden = true;
+
+		availableOptions( select ).forEach( function ( option ) {
+			var item = document.createElement( 'button' );
+
+			item.type = 'button';
+			item.className = 'wcd-pick__item';
+			item.value = option.value;
+			item.textContent = option.getAttribute( 'data-label' ) || option.textContent;
+
+			item.addEventListener( 'click', function () {
+				select.value = option.value;
+				select.dispatchEvent( new Event( 'change', { bubbles: true } ) );
+				closePicker();
+				button.focus();
+			} );
+
+			list.appendChild( item );
+		} );
+
+		function filter() {
+			var needle = search.value.trim().toLowerCase();
+			var shown = 0;
+
+			Array.prototype.forEach.call( list.children, function ( item ) {
+				var hit = ! needle || item.textContent.toLowerCase().indexOf( needle ) !== -1;
+
+				item.hidden = ! hit;
+
+				if ( hit ) {
+					++shown;
+				}
+			} );
+
+			empty.hidden = shown > 0;
+		}
+
+		search.addEventListener( 'input', filter );
+
+		// Enter takes the first match, which is what a search box that has just
+		// narrowed thirty rows to one should do.
+		search.addEventListener( 'keydown', function ( event ) {
+			if ( event.key !== 'Enter' ) {
+				return;
+			}
+
+			event.preventDefault();
+
+			var first = Array.prototype.find.call( list.children, function ( item ) {
+				return ! item.hidden;
+			} );
+
+			if ( first ) {
+				first.click();
+			}
+		} );
+
+		pop.appendChild( search );
+		pop.appendChild( list );
+		pop.appendChild( empty );
+
+		wrap.appendChild( pop );
+		wrap.classList.add( 'is-open' );
+
+		openPicker = { wrap: wrap, pop: pop };
+
+		search.focus();
+	}
+
+	function bindPickers() {
+		document.addEventListener( 'click', function ( event ) {
+			var button = event.target.closest( '[data-wcd-pick]' );
+
+			if ( ! button ) {
+				// A click anywhere else closes an open one, unless it landed
+				// inside the popup itself.
+				if ( ! event.target.closest( '.wcd-pick' ) ) {
+					closePicker();
+				}
+
+				return;
+			}
+
+			event.preventDefault();
+
+			var wrap = button.closest( '[data-wcd-batches]' );
+			var select = wrap ? wrap.querySelector( '[data-wcd-add]' ) : null;
+			var wasOpen = openPicker && openPicker.wrap === wrap;
+
+			closePicker();
+
+			if ( ! select || wasOpen ) {
+				return;
+			}
+
+			buildPicker( wrap, select, button );
+		} );
+
+		document.addEventListener( 'keydown', function ( event ) {
+			if ( event.key === 'Escape' ) {
+				closePicker();
+			}
+		} );
+
+		// Only now does the select step back, so a page whose script never
+		// arrives keeps a picker that works.
+		Array.prototype.forEach.call(
+			document.querySelectorAll( '[data-wcd-batches]' ),
+			function ( wrap ) {
+				wrap.classList.add( 'has-picker' );
+			}
+		);
+	}
+
 	function start() {
 		bindBands();
 		bindChips();
+		bindPickers();
 
 		document.querySelectorAll( '.wcd-form' ).forEach( function ( form ) {
 			if ( ! form.querySelector( '[data-wcd-scope]' ) ) {
