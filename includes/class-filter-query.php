@@ -368,8 +368,10 @@ class Filter_Query {
 
 		// --- Expiry months ---------------------------------------------------
 		if ( $s['expiry'] !== array() ) {
+			// Every month the product is stocked in, not just the soonest, so a
+			// product held in three batches is found under all three.
 			$clauses[] = array(
-				'key'     => Price_Engine::META_EXPIRY,
+				'key'     => Price_Engine::META_EXPIRY_ALL,
 				'value'   => $s['expiry'],
 				'compare' => 'IN',
 			);

@@ -218,6 +218,14 @@ class Admin_Products {
 		$now      = (float) $product->get_price();
 		$campaign = '';
 
+		// A variable product keeps no price of its own — the figures live on its
+		// variations — so get_regular_price() is empty and the row showed the
+		// discounted price with nothing to compare it against. The price the
+		// product had before we converted it is stashed for exactly this.
+		if ( $regular <= 0 && Variations::owns( $product_id ) ) {
+			$regular = (float) get_post_meta( $product_id, Variations::META_BASE_REGULAR, true );
+		}
+
 		if ( $outcome !== null && $outcome['type'] === Rules::TYPE_CAMPAIGN ) {
 			$rule     = Rules::get( $outcome['rule_id'] );
 			$campaign = $rule ? (string) $rule['title'] : '';

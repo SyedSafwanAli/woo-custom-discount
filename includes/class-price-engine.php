@@ -39,6 +39,12 @@ class Price_Engine {
 	/** Expiry as YYYYMM. The expiry filter, sorting and hiding read this. */
 	public const META_EXPIRY = '_wcd_expiry_ym';
 
+	/**
+	 * Every month the product is stocked in, one row each. See
+	 * sync_expiry_months() for why this is separate from the key above.
+	 */
+	public const META_EXPIRY_ALL = '_wcd_expiry_months';
+
 	/** Which rule produced the current price. */
 	public const META_RULE = '_wcd_rule_id';
 
@@ -388,11 +394,56 @@ class Price_Engine {
 
 		if ( $batch !== null && ! empty( $batch['expiry_ym'] ) ) {
 			update_post_meta( $product_id, self::META_EXPIRY, (string) $batch['expiry_ym'] );
+		} else {
+			delete_post_meta( $product_id, self::META_EXPIRY );
+		}
 
+		self::sync_expiry_months( $product_id );
+	}
+
+	/**
+	 * One row per month the product is stocked in.
+	 *
+	 * META_EXPIRY above holds a single month, the soonest, and that is the right
+	 * answer to "when does this expire" — it is what the label says and what the
+	 * shop sorts by. It is the wrong answer to "is this in the October filter",
+	 * because a product held in August, September and October is in all three,
+	 * and a single value could only ever put it in one. That is why filtering by
+	 * October found nothing but the products whose only batch was October.
+	 *
+	 * Kept as a second key rather than as extra rows on the first, because
+	 * ordering a query by a meta key that has three rows per product returns that
+	 * product three times.
+	 */
+	private static function sync_expiry_months( int $product_id ): void {
+		$wanted = array();
+
+		foreach ( Variations::batches_for( $product_id ) as $batch ) {
+			$ym = (string) $batch['expiry_ym'];
+
+			if ( $ym !== '' ) {
+				$wanted[ $ym ] = true;
+			}
+		}
+
+		$wanted  = array_keys( $wanted );
+		$current = get_post_meta( $product_id, self::META_EXPIRY_ALL, false );
+		$current = array_map( 'strval', is_array( $current ) ? $current : array() );
+
+		sort( $wanted );
+		sort( $current );
+
+		// Rewriting these on every save would churn the meta table on a catalogue
+		// this size for no gain, so only a real change is written.
+		if ( $wanted === $current ) {
 			return;
 		}
 
-		delete_post_meta( $product_id, self::META_EXPIRY );
+		delete_post_meta( $product_id, self::META_EXPIRY_ALL );
+
+		foreach ( $wanted as $ym ) {
+			add_post_meta( $product_id, self::META_EXPIRY_ALL, $ym, false );
+		}
 	}
 
 	/**
@@ -531,6 +582,7 @@ class Price_Engine {
 
 		if ( $drop_expiry ) {
 			$keys[] = self::META_EXPIRY;
+			$keys[] = self::META_EXPIRY_ALL;
 		}
 
 		foreach ( $keys as $key ) {

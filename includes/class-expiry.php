@@ -243,7 +243,7 @@ class Expiry {
 				    AND p.post_status = 'publish'
 				  GROUP BY pm.meta_value
 				  ORDER BY pm.meta_value ASC",
-				Price_Engine::META_EXPIRY
+				Price_Engine::META_EXPIRY_ALL
 			),
 			ARRAY_A
 		);

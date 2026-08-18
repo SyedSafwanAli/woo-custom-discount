@@ -46,6 +46,15 @@ class Variations {
 	public const META_WAS_TYPE = '_wcd_previous_type';
 
 	/**
+	 * The regular price the product had before it became variable.
+	 *
+	 * A variable product keeps no price of its own, so without this the original
+	 * figure would be gone — both for putting it back on the way out, and for
+	 * showing what the discount is measured against while it is in.
+	 */
+	public const META_BASE_REGULAR = '_wcd_base_regular';
+
+	/**
 	 * Whether the feature is switched on at all.
 	 */
 	public static function enabled(): bool {
@@ -230,7 +239,7 @@ class Variations {
 		// clears it. Put back the figure stashed at conversion, or the product
 		// comes out of this with no price at all — which is how it looks to a
 		// shopper, not just in the database.
-		$base = get_post_meta( $product_id, '_wcd_base_regular', true );
+		$base = get_post_meta( $product_id, self::META_BASE_REGULAR, true );
 
 		if ( $base !== '' && (float) $base > 0 ) {
 			$simple = wc_get_product( $product_id );
@@ -243,7 +252,7 @@ class Variations {
 			self::refresh( $product_id );
 		}
 
-		delete_post_meta( $product_id, '_wcd_base_regular' );
+		delete_post_meta( $product_id, self::META_BASE_REGULAR );
 
 		// Back to a single price, worked out the ordinary way.
 		Price_Engine::apply_product( $product_id );
@@ -311,7 +320,7 @@ class Variations {
 	 * @param \WC_Product $product Product.
 	 */
 	private static function regular_price( $product ): float {
-		$stored = get_post_meta( $product->get_id(), '_wcd_base_regular', true );
+		$stored = get_post_meta( $product->get_id(), self::META_BASE_REGULAR, true );
 
 		if ( $stored !== '' && (float) $stored > 0 ) {
 			return (float) $stored;
@@ -320,7 +329,7 @@ class Variations {
 		$regular = (float) $product->get_regular_price();
 
 		if ( $regular > 0 ) {
-			update_post_meta( $product->get_id(), '_wcd_base_regular', (string) $regular );
+			update_post_meta( $product->get_id(), self::META_BASE_REGULAR, (string) $regular );
 		}
 
 		return $regular;
