@@ -13,30 +13,31 @@
 	margin: 0 0 10px;
 }
 
-/* Kept in the page for WooCommerce's script, kept out of the way of the shopper.
+/* The dropdown lives in here, out of sight but still in the page: WooCommerce's
+ * variation script reads and writes it, and taking it out would take the price,
+ * the stock line and the add-to-cart button with it.
  *
- * Every property carries !important, which is not habit but necessity: Divi
- * styles these as `.woocommerce div.product form.cart .variations select`, four
- * classes deep, and without it the select was absolutely positioned — the one
- * property that did carry it — at Divi's full width, and sat there in plain
- * sight underneath the buttons. */
-.wcd-swatches + select,
-.wcd-swatches ~ .reset_variations {
-	position: absolute !important;
-	width: 1px !important;
-	min-width: 0 !important;
-	max-width: 1px !important;
-	height: 1px !important;
-	min-height: 0 !important;
-	margin: -1px !important;
-	padding: 0 !important;
-	overflow: hidden !important;
-	clip: rect( 0 0 0 0 ) !important;
-	clip-path: inset( 50% ) !important;
-	white-space: nowrap !important;
-	border: 0 !important;
-	opacity: 0 !important;
-	pointer-events: none !important;
+ * Hiding the select where it stood meant out-styling whatever the theme had
+ * already said about it — a fight to be re-fought with every theme and every
+ * update, and one that was already being lost. Nothing else styles this wrapper,
+ * so no !important is needed and none is used. */
+.wcd-native {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	overflow: hidden;
+	clip: rect( 0 0 0 0 );
+	clip-path: inset( 50% );
+	white-space: nowrap;
+	border: 0;
+}
+
+/* Clicking the chosen button already clears it. */
+.wcd-swatches ~ .reset_variations,
+.wcd-native ~ .reset_variations {
+	display: none;
 }
 
 

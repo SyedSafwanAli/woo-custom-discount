@@ -630,8 +630,12 @@ class Variations {
 			return (string) $html;
 		}
 
+		// The dropdown goes inside a wrapper of our own rather than being hidden
+		// where it stands. Hiding it in place meant competing with the theme's
+		// rules for the select itself, which is a fight to be re-fought with
+		// every theme and every update; nothing else styles this wrapper.
 		return sprintf(
-			'<div class="wcd-swatches" data-attribute="%1$s">%2$s</div>%3$s',
+			'<div class="wcd-swatches" data-attribute="%1$s">%2$s</div><span class="wcd-native">%3$s</span>',
 			esc_attr( $attribute ),
 			$buttons,
 			$html
