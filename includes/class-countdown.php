@@ -42,10 +42,12 @@ class Countdown {
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue' ) );
 
 		if ( self::loop_is_overlay() ) {
-			// Priority 20 lands just after the thumbnail and still inside the
-			// card's link, which is what lets the strip sit over the image
-			// rather than pushing the card taller.
-			add_action( 'woocommerce_before_shop_loop_item_title', array( __CLASS__, 'render_loop' ), 20 );
+			// A wrapper of our own around the thumbnail, opened before it and
+			// closed after. Anchoring to the card's own link does not work:
+			// WooCommerce keeps that link open past the title and the price, so
+			// "bottom" lands under the price rather than on the image.
+			add_action( 'woocommerce_before_shop_loop_item_title', array( __CLASS__, 'open_media' ), 9 );
+			add_action( 'woocommerce_before_shop_loop_item_title', array( __CLASS__, 'close_media' ), 20 );
 		} else {
 			add_action( 'woocommerce_after_shop_loop_item_title', array( __CLASS__, 'render_loop' ), 15 );
 		}
@@ -107,6 +109,30 @@ class Countdown {
 		if ( $product instanceof \WC_Product ) {
 			echo self::html( $product->get_id(), 'loop' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped when built.
 		}
+	}
+
+	/**
+	 * Opens the wrapper that the overlay is positioned against.
+	 *
+	 * It has to contain the thumbnail and nothing else, which is why it is put
+	 * here rather than reusing whatever the theme wraps the image in — those
+	 * differ by theme, and Divi's also holds the hover overlay.
+	 */
+	public static function open_media(): void {
+		echo '<span class="wcd-media">';
+	}
+
+	/**
+	 * Closes it, with the countdown inside.
+	 */
+	public static function close_media(): void {
+		global $product;
+
+		if ( $product instanceof \WC_Product ) {
+			echo self::html( $product->get_id(), 'loop' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped when built.
+		}
+
+		echo '</span>';
 	}
 
 	/**

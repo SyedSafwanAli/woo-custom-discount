@@ -117,10 +117,17 @@
    product. This sits on the image instead and costs the card no height at all.
    ===================================================================== */
 
-/* The card's link is the positioning context; the strip is its last child. */
-.woocommerce ul.products li.product a.woocommerce-LoopProduct-link,
-.woocommerce-page ul.products li.product a.woocommerce-LoopProduct-link {
+/* Wraps the thumbnail and nothing else, so "bottom" means the foot of the image.
+   The card's own link cannot be used for this: WooCommerce keeps it open past
+   the title and the price, so the strip landed over those instead. */
+.woocommerce ul.products li.product .wcd-media,
+.woocommerce-page ul.products li.product .wcd-media {
 	position: relative;
+	display: block;
+	overflow: hidden;
+}
+
+.woocommerce ul.products li.product .wcd-media > img {
 	display: block;
 }
 
