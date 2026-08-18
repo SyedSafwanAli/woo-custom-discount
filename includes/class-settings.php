@@ -73,6 +73,15 @@ class Settings {
 			// Empty means "none chosen yet" — the filter group stays hidden.
 			'filter_categories' => array(),
 
+			// Where the countdown sits on a shop grid card.
+			//   overlay  across the bottom of the product image
+			//   below    under the price, as a separate block
+			'countdown_in_loop' => 'overlay',
+
+			// A "Save Rs 2,697" chip under the price. Off by default because
+			// this shop already writes the saving into its product images.
+			'show_savings'      => false,
+
 			// Show a product count beside each filter option.
 			'show_counts'       => true,
 

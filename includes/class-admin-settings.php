@@ -75,6 +75,47 @@ class Admin_Settings {
 			__( 'Each campaign and batch also has its own countdown switch.', 'woo-custom-discount' )
 		);
 
+		echo '</tbody></table>';
+
+		// --- Countdown appearance --------------------------------------------
+		echo '<h2>' . esc_html__( 'How the countdown looks', 'woo-custom-discount' ) . '</h2>';
+		echo '<table class="form-table" role="presentation"><tbody>';
+
+		$position  = (string) Settings::get( 'countdown_in_loop', 'overlay' );
+		$positions = array(
+			'overlay' => __( 'Across the bottom of the product image', 'woo-custom-discount' ),
+			'below'   => __( 'Under the price, as a separate block', 'woo-custom-discount' ),
+		);
+
+		echo '<tr><th scope="row">' . esc_html__( 'On the shop grid', 'woo-custom-discount' ) . '</th><td>';
+
+		foreach ( $positions as $key => $label ) {
+			printf(
+				'<label class="wcd-check"><input type="radio" name="countdown_in_loop" value="%1$s"%2$s> %3$s</label>',
+				esc_attr( $key ),
+				checked( $position, $key, false ),
+				esc_html( $label )
+			);
+		}
+
+		echo '<p class="description">';
+		esc_html_e( 'Over the image, the countdown costs the card no height. Below the price it is bigger, but pushes the price and the button down. The product page always uses the bigger form.', 'woo-custom-discount' );
+		echo '</p>';
+		echo '</td></tr>';
+
+		printf(
+			'<tr><th scope="row">%1$s</th><td><label class="wcd-check"><input type="checkbox" name="show_savings" value="1"%2$s> %3$s</label><p class="description">%4$s</p></td></tr>',
+			esc_html__( 'Saving', 'woo-custom-discount' ),
+			checked( Settings::is_on( 'show_savings' ), true, false ),
+			esc_html__( 'Show a “You save Rs 2,697” chip under the price', 'woo-custom-discount' ),
+			esc_html__( 'Left off because this shop already writes the saving into its product images. Turn it on once those are plain photographs.', 'woo-custom-discount' )
+		);
+
+		echo '</tbody></table>';
+
+		echo '<h2>' . esc_html__( 'More switches', 'woo-custom-discount' ) . '</h2>';
+		echo '<table class="form-table" role="presentation"><tbody>';
+
 		self::toggle(
 			'hide_expired',
 			__( 'Hide expired stock', 'woo-custom-discount' ),
@@ -203,6 +244,7 @@ class Admin_Settings {
 		$now_on = ! empty( $_POST['engine_enabled'] );
 
 		$rounding = isset( $_POST['rounding'] ) ? sanitize_key( wp_unslash( (string) $_POST['rounding'] ) ) : 'down';
+		$in_loop  = isset( $_POST['countdown_in_loop'] ) ? sanitize_key( wp_unslash( (string) $_POST['countdown_in_loop'] ) ) : 'overlay';
 
 		Settings::update(
 			array(
@@ -211,6 +253,8 @@ class Admin_Settings {
 				'countdown_enabled'  => ! empty( $_POST['countdown_enabled'] ),
 				'hide_expired'       => ! empty( $_POST['hide_expired'] ),
 				'rounding'           => in_array( $rounding, array( 'down', 'near', 'up' ), true ) ? $rounding : 'down',
+				'countdown_in_loop'  => in_array( $in_loop, array( 'overlay', 'below' ), true ) ? $in_loop : 'overlay',
+				'show_savings'       => ! empty( $_POST['show_savings'] ),
 				'purge_on_uninstall' => ! empty( $_POST['purge_on_uninstall'] ),
 			)
 		);

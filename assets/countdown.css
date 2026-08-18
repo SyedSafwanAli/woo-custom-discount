@@ -109,6 +109,132 @@
 	font-size: 0.95em;
 }
 
+/* ========================================================================
+   Overlay: one line across the foot of the product image
+
+   The block form belongs on a product page, where there is room. On a grid card
+   it pushed the price and the button down and ended up shouting louder than the
+   product. This sits on the image instead and costs the card no height at all.
+   ===================================================================== */
+
+/* The card's link is the positioning context; the strip is its last child. */
+.woocommerce ul.products li.product a.woocommerce-LoopProduct-link,
+.woocommerce-page ul.products li.product a.woocommerce-LoopProduct-link {
+	position: relative;
+	display: block;
+}
+
+.woocommerce ul.products li.product .wcd-countdown--overlay {
+	display: none;
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 2;
+	margin: 0;
+	padding: 0.5em 0.6em;
+	border: 0;
+	border-radius: 0;
+	background: rgba( 24, 28, 20, 0.82 );
+	color: #fff;
+	text-align: center;
+	line-height: 1.2;
+	/* Legible over a light bottle or a dark one alike. */
+	backdrop-filter: blur( 2px );
+}
+
+.woocommerce ul.products li.product .wcd-countdown--overlay.is-live {
+	display: block;
+}
+
+.wcd-countdown--overlay .wcd-countdown__label {
+	display: block;
+	font-size: 0.62em;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.1em;
+	opacity: 0.75;
+}
+
+.wcd-countdown--overlay .wcd-countdown__clock {
+	display: flex;
+	justify-content: center;
+	align-items: baseline;
+	gap: 0.55em;
+	margin-top: 0.15em;
+}
+
+.wcd-countdown--overlay .wcd-countdown__unit {
+	display: inline-flex;
+	align-items: baseline;
+	gap: 0.06em;
+	min-width: 0;
+	padding: 0;
+	border: 0;
+	background: none;
+}
+
+.wcd-countdown--overlay .wcd-countdown__value {
+	font-size: 0.95em;
+	font-weight: 700;
+	color: #fff;
+	font-variant-numeric: tabular-nums;
+	font-feature-settings: "tnum";
+}
+
+.wcd-countdown--overlay .wcd-countdown__suffix {
+	font-size: 0.68em;
+	font-weight: 600;
+	opacity: 0.7;
+}
+
+/* Expiry runs amber, a sale ending runs red — the same language as the block. */
+.wcd-countdown--overlay.wcd-countdown--expiry {
+	background: rgba( 120, 70, 0, 0.86 );
+}
+
+.wcd-countdown--overlay.wcd-countdown--sale {
+	background: rgba( 130, 30, 20, 0.86 );
+}
+
+/* ========================================================================
+   Card tidy-up
+   ===================================================================== */
+
+.woocommerce ul.products li.product .wcd-savings {
+	display: inline-block;
+	margin: 0.25em 0 0;
+	padding: 2px 9px;
+	border-radius: 999px;
+	background: #f0f4e4;
+	color: #46591d;
+	font-size: 0.78em;
+	font-weight: 700;
+}
+
+/* Titles run to three and four lines here, which left the prices on a ragged
+   line across the row. Two lines, then an ellipsis. */
+.woocommerce ul.products li.product h2.woocommerce-loop-product__title {
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+	min-height: 2.7em;
+	line-height: 1.35;
+}
+
+/* The price the shopper pays should win over the one they are not paying. */
+.woocommerce ul.products li.product .price del {
+	opacity: 0.55;
+	font-size: 0.88em;
+	font-weight: 400;
+}
+
+.woocommerce ul.products li.product .price ins {
+	text-decoration: none;
+	font-weight: 700;
+}
+
 .wcd-expiry-note {
 	margin: 0.5em 0 1em;
 	font-size: 0.9em;
