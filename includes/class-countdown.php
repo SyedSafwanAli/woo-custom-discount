@@ -192,7 +192,8 @@ class Countdown {
 			<span class="wcd-countdown__clock" data-wcd-clock>
 				<?php foreach ( array( 'days', 'hours', 'minutes', 'seconds' ) as $unit ) : ?>
 					<span class="wcd-countdown__unit">
-						<span class="wcd-countdown__value" data-unit="<?php echo esc_attr( $unit ); ?>">--</span><span class="wcd-countdown__suffix"><?php echo esc_html( self::unit_suffix( $unit ) ); ?></span>
+						<span class="wcd-countdown__value" data-unit="<?php echo esc_attr( $unit ); ?>">--</span>
+						<span class="wcd-countdown__name"><?php echo esc_html( self::unit_label( $unit ) ); ?></span>
 					</span>
 				<?php endforeach; ?>
 			</span>
@@ -272,17 +273,6 @@ class Countdown {
 		);
 	}
 
-	/**
-	 * "d", "h", "m", "s" — enough in a strip that has no room for words.
-	 */
-	private static function unit_suffix( string $unit ): string {
-		return match ( $unit ) {
-			'days'    => _x( 'd', 'days, abbreviated', 'woo-custom-discount' ),
-			'hours'   => _x( 'h', 'hours, abbreviated', 'woo-custom-discount' ),
-			'minutes' => _x( 'm', 'minutes, abbreviated', 'woo-custom-discount' ),
-			default   => _x( 's', 'seconds, abbreviated', 'woo-custom-discount' ),
-		};
-	}
 
 	/**
 	 * Which countdown, if any, a product should show.

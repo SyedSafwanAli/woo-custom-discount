@@ -132,22 +132,30 @@
 }
 
 .woocommerce ul.products li.product .wcd-countdown--overlay {
+	--wcd-box: #d92a3f;
+
 	display: none;
 	position: absolute;
 	left: 0;
 	right: 0;
 	bottom: 0;
-	z-index: 2;
+	/* Divi's hover overlay sits at 3. Below that, the countdown was washed out
+	   the moment the pointer touched the card. */
+	z-index: 10;
 	margin: 0;
-	padding: 0.5em 0.6em;
+	padding: 7px 6px 8px;
 	border: 0;
 	border-radius: 0;
-	background: rgba( 24, 28, 20, 0.82 );
-	color: #fff;
+	/* A light band rather than a dark one: the numbers carry the colour, and
+	   dark labels on white read better than pale ones on a photograph. */
+	background: rgba( 255, 255, 255, 0.93 );
+	backdrop-filter: blur( 3px );
+	box-shadow: inset 0 1px 0 rgba( 0, 0, 0, 0.06 );
 	text-align: center;
+	/* Fixed rather than inherited: this sits inside a card whose font size the
+	   theme may change, and the boxes have very little room to give. */
+	font-size: 12px;
 	line-height: 1.2;
-	/* Legible over a light bottle or a dark one alike. */
-	backdrop-filter: blur( 2px );
 }
 
 .woocommerce ul.products li.product .wcd-countdown--overlay.is-live {
@@ -156,25 +164,26 @@
 
 .wcd-countdown--overlay .wcd-countdown__label {
 	display: block;
-	font-size: 0.62em;
-	font-weight: 600;
+	margin-bottom: 4px;
+	font-size: 9px;
+	font-weight: 700;
 	text-transform: uppercase;
-	letter-spacing: 0.1em;
-	opacity: 0.75;
+	letter-spacing: 0.11em;
+	color: #6b7280;
 }
 
 .wcd-countdown--overlay .wcd-countdown__clock {
 	display: flex;
 	justify-content: center;
-	align-items: baseline;
-	gap: 0.55em;
-	margin-top: 0.15em;
+	align-items: flex-start;
+	gap: 4px;
 }
 
 .wcd-countdown--overlay .wcd-countdown__unit {
-	display: inline-flex;
-	align-items: baseline;
-	gap: 0.06em;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 3px;
 	min-width: 0;
 	padding: 0;
 	border: 0;
@@ -182,26 +191,40 @@
 }
 
 .wcd-countdown--overlay .wcd-countdown__value {
-	font-size: 0.95em;
-	font-weight: 700;
+	display: block;
+	min-width: 30px;
+	padding: 4px 5px;
+	border-radius: 5px;
+	background: var( --wcd-box );
 	color: #fff;
+	font-size: 15px;
+	font-weight: 700;
+	line-height: 1.15;
 	font-variant-numeric: tabular-nums;
 	font-feature-settings: "tnum";
 }
 
-.wcd-countdown--overlay .wcd-countdown__suffix {
-	font-size: 0.68em;
+.wcd-countdown--overlay .wcd-countdown__name {
+	font-size: 9px;
 	font-weight: 600;
-	opacity: 0.7;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: #6b7280;
 }
 
-/* Expiry runs amber, a sale ending runs red — the same language as the block. */
+/* Expiry runs amber, a sale ending runs red — the boxes carry the difference. */
 .wcd-countdown--overlay.wcd-countdown--expiry {
-	background: rgba( 120, 70, 0, 0.86 );
+	--wcd-box: #c2410c;
 }
 
 .wcd-countdown--overlay.wcd-countdown--sale {
-	background: rgba( 130, 30, 20, 0.86 );
+	--wcd-box: #d92a3f;
+}
+
+/* Divi fades the image on hover; the countdown is not part of that picture and
+   should not fade with it. */
+.woocommerce ul.products li.product:hover .wcd-countdown--overlay.is-live {
+	opacity: 1;
 }
 
 /* ========================================================================
