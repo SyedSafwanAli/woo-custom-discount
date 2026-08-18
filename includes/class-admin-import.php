@@ -27,14 +27,156 @@ class Admin_Import {
 	 */
 	public static function init(): void {
 		add_action( 'admin_post_wcd_import', array( __CLASS__, 'handle_import' ) );
+		add_action( 'admin_post_wcd_export', array( __CLASS__, 'handle_export' ) );
+		add_action( 'admin_post_wcd_import_file', array( __CLASS__, 'handle_import_file' ) );
 	}
 
 	/**
 	 * Renders the tab.
 	 */
 	public static function render(): void {
+		self::render_transfer_box();
 		self::render_import_box();
 		self::render_preview();
+	}
+
+	/**
+	 * Moving rules to another site — the panel that matters for going live.
+	 */
+	private static function render_transfer_box(): void {
+		$counts = Rules::counts();
+		$total  = $counts[ Rules::TYPE_CAMPAIGN ] + $counts[ Rules::TYPE_BATCH ];
+
+		echo '<h2>' . esc_html__( 'Move these rules to another site', 'woo-custom-discount' ) . '</h2>';
+
+		echo '<p class="wcd-intro">';
+		esc_html_e( 'Set your campaigns and batches up here, then carry them to the live shop as a file. Products are matched by SKU first and by ID second, and anything that cannot be found is listed rather than skipped quietly.', 'woo-custom-discount' );
+		echo '</p>';
+
+		echo '<div class="wcd-transfer">';
+
+		// --- Export ----------------------------------------------------------
+		echo '<div class="wcd-transfer__half">';
+		echo '<h3>' . esc_html__( 'Export', 'woo-custom-discount' ) . '</h3>';
+
+		if ( $total === 0 ) {
+			echo '<p class="description">' . esc_html__( 'There is nothing to export yet.', 'woo-custom-discount' ) . '</p>';
+		} else {
+			printf(
+				'<p>%s</p>',
+				esc_html(
+					sprintf(
+						/* translators: 1: campaigns, 2: batches. */
+						__( '%1$d campaigns and %2$d expiry batches are ready to export.', 'woo-custom-discount' ),
+						$counts[ Rules::TYPE_CAMPAIGN ],
+						$counts[ Rules::TYPE_BATCH ]
+					)
+				)
+			);
+
+			echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
+			wp_nonce_field( 'wcd_export' );
+			echo '<input type="hidden" name="action" value="wcd_export">';
+
+			printf(
+				'<p><label class="wcd-check"><input type="checkbox" name="with_settings" value="1" checked> %s</label></p>',
+				esc_html__( 'Include the filter settings — bands, months, layout', 'woo-custom-discount' )
+			);
+
+			submit_button( __( 'Download rules file', 'woo-custom-discount' ), 'secondary', 'submit', false );
+			echo '</form>';
+		}
+
+		echo '</div>';
+
+		// --- Import ----------------------------------------------------------
+		echo '<div class="wcd-transfer__half">';
+		echo '<h3>' . esc_html__( 'Import', 'woo-custom-discount' ) . '</h3>';
+
+		echo '<form method="post" enctype="multipart/form-data" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
+		wp_nonce_field( 'wcd_import_file' );
+		echo '<input type="hidden" name="action" value="wcd_import_file">';
+
+		echo '<p><input type="file" name="wcd_file" accept=".json,application/json" required></p>';
+
+		printf(
+			'<p><label class="wcd-check"><input type="checkbox" name="with_settings" value="1" checked> %s</label>',
+			esc_html__( 'Apply the filter settings from the file', 'woo-custom-discount' )
+		);
+
+		printf(
+			'<label class="wcd-check"><input type="checkbox" name="enable" value="1"> %s</label></p>',
+			esc_html__( 'Switch the rules on straight away', 'woo-custom-discount' )
+		);
+
+		echo '<p class="description">';
+		esc_html_e( 'Leave that unticked to bring them in paused, look them over, then activate. On a live shop that is the safer order.', 'woo-custom-discount' );
+		echo '</p>';
+
+		submit_button( __( 'Import rules file', 'woo-custom-discount' ), 'secondary', 'submit', false );
+		echo '</form>';
+
+		echo '</div>';
+		echo '</div>';
+
+		self::render_last_file_report();
+	}
+
+	/**
+	 * What the last file import actually matched.
+	 */
+	private static function render_last_file_report(): void {
+		$report = get_transient( 'wcd_last_file_import' );
+
+		if ( ! is_array( $report ) ) {
+			return;
+		}
+
+		delete_transient( 'wcd_last_file_import' );
+
+		echo '<h3>' . esc_html__( 'What was imported', 'woo-custom-discount' ) . '</h3>';
+
+		printf(
+			'<p><span class="wcd-pill %1$s">%2$s</span></p>',
+			$report['unmatched'] > 0 ? 'is-warn' : 'is-on',
+			esc_html(
+				sprintf(
+					/* translators: 1: matched count, 2: unmatched count. */
+					__( '%1$d products and categories matched, %2$d could not be found.', 'woo-custom-discount' ),
+					(int) $report['matched'],
+					(int) $report['unmatched']
+				)
+			)
+		);
+
+		if ( $report['unmatched'] === 0 ) {
+			return;
+		}
+
+		echo '<table class="widefat striped wcd-list"><thead><tr>';
+		echo '<th>' . esc_html__( 'Rule', 'woo-custom-discount' ) . '</th>';
+		echo '<th>' . esc_html__( 'Not found', 'woo-custom-discount' ) . '</th>';
+		echo '<th>' . esc_html__( 'SKU', 'woo-custom-discount' ) . '</th>';
+		echo '<th>' . esc_html__( 'Why', 'woo-custom-discount' ) . '</th>';
+		echo '</tr></thead><tbody>';
+
+		foreach ( $report['rules'] as $rule ) {
+			foreach ( $rule['missing'] as $miss ) {
+				printf(
+					'<tr><td>%1$s</td><td>%2$s</td><td>%3$s</td><td>%4$s</td></tr>',
+					esc_html( $rule['title'] ),
+					esc_html( $miss['name'] ),
+					esc_html( $miss['sku'] !== '' ? $miss['sku'] : '—' ),
+					esc_html( $miss['reason'] )
+				);
+			}
+		}
+
+		echo '</tbody></table>';
+
+		echo '<p class="description">';
+		esc_html_e( 'These were left out of their rule. Add them by hand from the Campaigns or Expiry Batches tab, or give the products a SKU on both sites and import again.', 'woo-custom-discount' );
+		echo '</p>';
 	}
 
 	/**
@@ -362,6 +504,98 @@ class Admin_Import {
 	 */
 	private static function money( float $amount ): string {
 		return number_format( $amount, (int) ( function_exists( 'wc_get_price_decimals' ) ? wc_get_price_decimals() : 0 ) );
+	}
+
+	/**
+	 * Sends the rules file to the browser.
+	 */
+	public static function handle_export(): void {
+		check_admin_referer( 'wcd_export' );
+		self::guard();
+
+		$payload = Exporter::build( ! empty( $_POST['with_settings'] ) );
+
+		$filename = sprintf(
+			'woo-custom-discount-%s.json',
+			gmdate( 'Y-m-d-His' )
+		);
+
+		nocache_headers();
+		header( 'Content-Type: application/json; charset=utf-8' );
+		header( 'Content-Disposition: attachment; filename=' . $filename );
+
+		echo wp_json_encode( $payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+
+		exit;
+	}
+
+	/**
+	 * Reads an uploaded rules file.
+	 */
+	public static function handle_import_file(): void {
+		check_admin_referer( 'wcd_import_file' );
+		self::guard();
+
+		$file = $_FILES['wcd_file'] ?? null;
+
+		if ( ! is_array( $file ) || ( $file['error'] ?? UPLOAD_ERR_NO_FILE ) !== UPLOAD_ERR_OK ) {
+			Admin::redirect_with_message( 'import', __( 'No file was uploaded, or it did not arrive in one piece.', 'woo-custom-discount' ) );
+		}
+
+		// Read the upload where PHP put it rather than storing it in the media
+		// library — a rules file has no business becoming a public attachment.
+		$raw = file_get_contents( $file['tmp_name'] ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+
+		if ( $raw === false || $raw === '' ) {
+			Admin::redirect_with_message( 'import', __( 'That file could not be read.', 'woo-custom-discount' ) );
+		}
+
+		$payload = json_decode( $raw, true );
+
+		if ( ! is_array( $payload ) ) {
+			Admin::redirect_with_message( 'import', __( 'That does not look like a rules file — it is not readable JSON.', 'woo-custom-discount' ) );
+		}
+
+		$report = Exporter::inspect( $payload );
+
+		if ( empty( $report['ok'] ) ) {
+			Admin::redirect_with_message( 'import', (string) $report['error'] );
+		}
+
+		$with_settings = ! empty( $_POST['with_settings'] );
+
+		if ( $with_settings && isset( $payload['settings'] ) ) {
+			$report['settings'] = $payload['settings'];
+		}
+
+		$created = Exporter::apply( $report, ! empty( $_POST['enable'] ), $with_settings );
+
+		// Kept for one page load so the report can be shown after the redirect.
+		set_transient( 'wcd_last_file_import', $report, 5 * MINUTE_IN_SECONDS );
+
+		if ( Plugin::engine_can_run() ) {
+			Price_Engine::apply_all();
+		}
+
+		Admin::redirect_with_message(
+			'import',
+			sprintf(
+				/* translators: 1: campaigns, 2: batches, 3: unmatched count. */
+				__( 'Imported %1$d campaigns and %2$d expiry batches. %3$d products could not be matched.', 'woo-custom-discount' ),
+				(int) $created[ Rules::TYPE_CAMPAIGN ],
+				(int) $created[ Rules::TYPE_BATCH ],
+				(int) $report['unmatched']
+			)
+		);
+	}
+
+	/**
+	 * Stops anyone without the capability.
+	 */
+	private static function guard(): void {
+		if ( ! current_user_can( Admin::CAPABILITY ) ) {
+			wp_die( esc_html__( 'You do not have permission to do that.', 'woo-custom-discount' ) );
+		}
 	}
 
 	/**
