@@ -55,6 +55,15 @@ class Variations {
 	public const META_BASE_REGULAR = '_wcd_base_regular';
 
 	/**
+	 * The stock the product was managing before it became variable.
+	 *
+	 * A variable product manages stock on its variations, so WooCommerce takes
+	 * the parent's own stock fields out of use — and reverting gave the product
+	 * back with nothing in them, which reads as out of stock.
+	 */
+	public const META_BASE_STOCK = '_wcd_base_stock';
+
+	/**
 	 * Whether the feature is switched on at all.
 	 */
 	public static function enabled(): bool {
@@ -228,6 +237,7 @@ class Variations {
 		if ( ! $was_owned ) {
 			update_post_meta( $product_id, self::META_WAS_TYPE, $product->get_type() );
 			update_post_meta( $product_id, self::META_OWNED, '1' );
+			self::remember_stock( $product );
 		}
 
 		// Type first, and re-read afterwards. A variation asks its parent for
@@ -318,10 +328,69 @@ class Variations {
 
 		delete_post_meta( $product_id, self::META_BASE_REGULAR );
 
+		self::restore_stock( $product_id );
+
 		// Back to a single price, worked out the ordinary way.
 		Price_Engine::apply_product( $product_id );
 
 		return 'reverted';
+	}
+
+	/**
+	 * Writes down what the product was managing before it became variable.
+	 *
+	 * @param \WC_Product $product Product, still in its original shape.
+	 */
+	private static function remember_stock( $product ): void {
+		update_post_meta(
+			$product->get_id(),
+			self::META_BASE_STOCK,
+			array(
+				'manage_stock'     => $product->get_manage_stock(),
+				'stock_quantity'   => $product->get_stock_quantity(),
+				'stock_status'     => $product->get_stock_status(),
+				'backorders'       => $product->get_backorders(),
+				'low_stock_amount' => $product->get_low_stock_amount(),
+			)
+		);
+	}
+
+	/**
+	 * Gives the stock fields back on the way out.
+	 *
+	 * Without this the product returns saying "6 in stock" nowhere and "out of
+	 * stock" everywhere: a variable product keeps its stock on its variations, so
+	 * WooCommerce stops managing it on the parent, and deleting the variations
+	 * leaves the parent with nothing to be in stock with. Nobody removing a
+	 * product from a batch is asking for it to leave the shop.
+	 */
+	private static function restore_stock( int $product_id ): void {
+		$stock = get_post_meta( $product_id, self::META_BASE_STOCK, true );
+
+		if ( ! is_array( $stock ) ) {
+			return;
+		}
+
+		$product = wc_get_product( $product_id );
+
+		if ( ! $product ) {
+			return;
+		}
+
+		$product->set_manage_stock( ! empty( $stock['manage_stock'] ) );
+		$product->set_stock_quantity( $stock['stock_quantity'] ?? null );
+		$product->set_backorders( (string) ( $stock['backorders'] ?? 'no' ) );
+		$product->set_low_stock_amount( $stock['low_stock_amount'] ?? '' );
+
+		// Last, because setting a quantity can move the status on its own, and the
+		// status the product actually had is the one to end on.
+		$product->set_stock_status( (string) ( $stock['stock_status'] ?? 'instock' ) );
+
+		$product->save();
+
+		delete_post_meta( $product_id, self::META_BASE_STOCK );
+
+		self::refresh( $product_id );
 	}
 
 	/**
