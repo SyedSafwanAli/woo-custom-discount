@@ -208,7 +208,22 @@ class Admin_Rules {
 		$tab      = self::tab( $type );
 
 		if ( $id && ( $rule === null || $rule['type'] !== $type ) ) {
-			echo '<div class="notice notice-error"><p>' . esc_html__( 'That rule could not be found.', 'woo-custom-discount' ) . '</p></div>';
+			// A dead end here is easy to land on: rules get new IDs when they
+			// are re-imported, so a bookmarked or still-open edit link outlives
+			// the rule it points at. Say so, and offer the way out.
+			echo '<div class="notice notice-error"><p>';
+			echo esc_html__( 'That rule no longer exists. Rules are given new numbers when they are re-imported, so a link you had open may be pointing at an older one.', 'woo-custom-discount' );
+			echo '</p></div>';
+
+			printf(
+				'<p><a class="button button-primary" href="%1$s">%2$s</a></p>',
+				esc_url( Admin::url( $tab ) ),
+				$is_batch
+					? esc_html__( 'See all expiry batches', 'woo-custom-discount' )
+					: esc_html__( 'See all campaigns', 'woo-custom-discount' )
+			);
+
+			self::render_list( $type );
 
 			return;
 		}
