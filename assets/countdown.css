@@ -197,15 +197,18 @@
 .wcd-countdown--overlay .wcd-countdown__value {
 	display: block;
 	/* Wide enough that the box does not change size between a one-digit and a
-	   two-digit figure, which would make the row twitch every second. */
+	   two-digit figure, which would make the row twitch every second. Height is
+	   set rather than padded out, so widening the box later cannot make it grow
+	   taller with it. */
 	min-width: 44px;
-	padding: 5px 6px;
+	height: 26px;
+	padding: 0 6px;
 	border-radius: 6px;
 	background: var( --wcd-box );
 	color: #fff;
 	font-size: 16px;
 	font-weight: 700;
-	line-height: 1.15;
+	line-height: 26px;
 	font-variant-numeric: tabular-nums;
 	font-feature-settings: "tnum";
 }
