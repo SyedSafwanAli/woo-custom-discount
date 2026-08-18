@@ -64,6 +64,64 @@ class Variations {
 	public const META_BASE_STOCK = '_wcd_base_stock';
 
 	/**
+	 * Which picture goes with which batch, as batch id => attachment id.
+	 *
+	 * Kept on the product rather than on the variation, because a variation is
+	 * rebuilt whenever the batches change and anything written on it is lost
+	 * with it. The product outlives every rebuild, so the choice does too.
+	 */
+	public const META_BATCH_IMAGES = '_wcd_batch_images';
+
+	/**
+	 * The picture chosen for each of a product's batches.
+	 *
+	 * @return array<int,int> Batch id => attachment id.
+	 */
+	public static function images_for( int $product_id ): array {
+		$stored = get_post_meta( $product_id, self::META_BATCH_IMAGES, true );
+
+		if ( ! is_array( $stored ) ) {
+			return array();
+		}
+
+		$out = array();
+
+		foreach ( $stored as $batch_id => $attachment_id ) {
+			$batch_id      = (int) $batch_id;
+			$attachment_id = (int) $attachment_id;
+
+			// A picture deleted from the media library would otherwise leave the
+			// variation pointing at nothing.
+			if ( $batch_id > 0 && $attachment_id > 0 && get_post_type( $attachment_id ) === 'attachment' ) {
+				$out[ $batch_id ] = $attachment_id;
+			}
+		}
+
+		return $out;
+	}
+
+	/**
+	 * Sets or clears the picture for one batch on one product.
+	 *
+	 * @param int $attachment_id Attachment, or 0 to go back to the product's own.
+	 */
+	public static function set_image( int $product_id, int $batch_id, int $attachment_id ): void {
+		$images = self::images_for( $product_id );
+
+		if ( $attachment_id > 0 ) {
+			$images[ $batch_id ] = $attachment_id;
+		} else {
+			unset( $images[ $batch_id ] );
+		}
+
+		if ( $images === array() ) {
+			delete_post_meta( $product_id, self::META_BATCH_IMAGES );
+		} else {
+			update_post_meta( $product_id, self::META_BATCH_IMAGES, $images );
+		}
+	}
+
+	/**
 	 * Whether the feature is switched on at all.
 	 */
 	public static function enabled(): bool {
@@ -533,6 +591,7 @@ class Variations {
 	 * @param array<int,array<string,mixed>> $batches Batches to offer.
 	 */
 	private static function apply_variations( int $product_id, array $batches, float $regular ): void {
+		$images   = self::images_for( $product_id );
 		$existing = array();
 
 		foreach ( self::our_variations( $product_id ) as $variation_id ) {
@@ -580,6 +639,12 @@ class Variations {
 
 			$variation->set_date_on_sale_from( null );
 			$variation->set_date_on_sale_to( $ends ? (string) $ends : null );
+
+			// A batch with its own picture gets it; one without falls back to the
+			// product's, which is what WooCommerce does with an empty image id.
+			// Set every time, so clearing a picture takes effect as surely as
+			// choosing one.
+			$variation->set_image_id( isset( $images[ $batch_id ] ) ? (string) $images[ $batch_id ] : '' );
 
 			$variation->set_menu_order( $index );
 			$variation->set_status( 'publish' );

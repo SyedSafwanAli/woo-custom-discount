@@ -106,6 +106,20 @@
 		chip.className = 'wcd-bchip';
 		chip.setAttribute( 'data-batch', batchId );
 
+		// A batch added here can be given its picture before the page is saved,
+		// which is the only moment anyone is thinking about that batch.
+		var pic = document.createElement( 'button' );
+		pic.type = 'button';
+		pic.className = 'wcd-bchip__pic';
+		pic.setAttribute( 'data-wcd-image', '' );
+		pic.innerHTML = '<span class="wcd-bchip__pic-empty" aria-hidden="true">+</span>';
+
+		var picInput = document.createElement( 'input' );
+		picInput.type = 'hidden';
+		picInput.className = 'wcd-bchip__img';
+		picInput.name = 'batch_images[' + productId + '][' + batchId + ']';
+		picInput.value = '0';
+
 		var text = document.createElement( 'span' );
 		text.className = 'wcd-bchip__label';
 		text.textContent = label;
@@ -122,11 +136,118 @@
 		input.name = 'batches[' + productId + '][]';
 		input.value = batchId;
 
+		chip.appendChild( pic );
 		chip.appendChild( text );
 		chip.appendChild( button );
 		chip.appendChild( input );
+		chip.appendChild( picInput );
 
 		return chip;
+	}
+
+	/**
+	 * Choosing the picture that goes with one batch.
+	 *
+	 * WordPress's own media frame, because these pictures are already in the
+	 * library — the shop makes one per batch and uploads it like any other.
+	 */
+	var mediaFrame = null;
+
+	function chooseImage( chip ) {
+		if ( ! window.wp || ! window.wp.media ) {
+			return;
+		}
+
+		var input = chip.querySelector( '.wcd-bchip__img' );
+		var pic = chip.querySelector( '[data-wcd-image]' );
+		var row = chip.closest( '[data-wcd-batches]' );
+
+		if ( ! input || ! pic ) {
+			return;
+		}
+
+		// One frame, reused. Opening a new one per chip leaves the old ones in
+		// the page, and a screen with fifty chips would collect fifty of them.
+		if ( ! mediaFrame ) {
+			mediaFrame = wp.media( {
+				title: pic.getAttribute( 'title' ) || '',
+				library: { type: 'image' },
+				button: { text: pic.getAttribute( 'data-choose' ) || 'Use this picture' },
+				multiple: false
+			} );
+		}
+
+		mediaFrame.off( 'select' );
+
+		mediaFrame.on( 'select', function () {
+			var picked = mediaFrame.state().get( 'selection' ).first();
+
+			if ( ! picked ) {
+				return;
+			}
+
+			var data = picked.toJSON();
+			var thumb = data.sizes && data.sizes.thumbnail ? data.sizes.thumbnail.url : data.url;
+
+			input.value = data.id;
+			pic.innerHTML = '<img src="' + thumb + '" alt="">';
+			chip.classList.add( 'has-image' );
+
+			if ( row ) {
+				row.classList.add( 'is-dirty' );
+			}
+		} );
+
+		mediaFrame.open();
+	}
+
+	function clearImage( chip ) {
+		var input = chip.querySelector( '.wcd-bchip__img' );
+		var pic = chip.querySelector( '[data-wcd-image]' );
+		var row = chip.closest( '[data-wcd-batches]' );
+
+		if ( input ) {
+			input.value = '0';
+		}
+
+		if ( pic ) {
+			pic.innerHTML = '<span class="wcd-bchip__pic-empty" aria-hidden="true">+</span>';
+		}
+
+		chip.classList.remove( 'has-image' );
+
+		if ( row ) {
+			row.classList.add( 'is-dirty' );
+		}
+	}
+
+	function bindImages() {
+		document.addEventListener( 'click', function ( event ) {
+			var pic = event.target.closest( '[data-wcd-image]' );
+
+			if ( ! pic ) {
+				return;
+			}
+
+			event.preventDefault();
+
+			var chip = pic.closest( '.wcd-bchip' );
+
+			if ( ! chip ) {
+				return;
+			}
+
+			// A picture already chosen is cleared by clicking it while holding a
+			// modifier, so removing one does not need a second control on a chip
+			// that is already three controls wide.
+			if ( chip.classList.contains( 'has-image' ) && ( event.altKey || event.shiftKey ) ) {
+				clearImage( chip );
+
+				return;
+			}
+
+			chooseImage( chip );
+		} );
 	}
 
 	function bindChips() {
@@ -361,6 +482,7 @@
 		bindBands();
 		bindChips();
 		bindPickers();
+		bindImages();
 
 		document.querySelectorAll( '.wcd-form' ).forEach( function ( form ) {
 			if ( ! form.querySelector( '[data-wcd-scope]' ) ) {

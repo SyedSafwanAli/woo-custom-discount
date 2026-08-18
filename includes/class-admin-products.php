@@ -289,6 +289,8 @@ class Admin_Products {
 
 		echo '<span class="wcd-plist__chips" data-wcd-chips>';
 
+		$images = Variations::images_for( $product_id );
+
 		foreach ( $in as $batch_id ) {
 			$batch = $by_id[ (int) $batch_id ] ?? null;
 
@@ -296,7 +298,8 @@ class Admin_Products {
 				continue;
 			}
 
-			echo self::chip_html( $product_id, $batch ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped when built.
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped when built.
+			echo self::chip_html( $product_id, $batch, $images[ (int) $batch_id ] ?? 0 );
 		}
 
 		echo '</span>';
@@ -341,14 +344,19 @@ class Admin_Products {
 	 *
 	 * @param array<string,mixed> $batch Batch data.
 	 */
-	private static function chip_html( int $product_id, array $batch ): string {
+	private static function chip_html( int $product_id, array $batch, int $image_id = 0 ): string {
+		$batch_id = (int) $batch['id'];
+		$thumb    = $image_id > 0 ? wp_get_attachment_image_url( $image_id, 'thumbnail' ) : '';
+
 		return sprintf(
-			'<span class="wcd-bchip" data-batch="%1$d">
+			'<span class="wcd-bchip%7$s" data-batch="%1$d">
+				<button type="button" class="wcd-bchip__pic" data-wcd-image title="%5$s" aria-label="%5$s">%6$s</button>
 				<span class="wcd-bchip__label">%2$s</span>
 				<button type="button" class="wcd-bchip__x" data-wcd-remove aria-label="%3$s">&times;</button>
 				<input type="hidden" name="batches[%4$d][]" value="%1$d">
+				<input type="hidden" class="wcd-bchip__img" name="batch_images[%4$d][%1$d]" value="%8$d">
 			</span>',
-			(int) $batch['id'],
+			$batch_id,
 			esc_html( self::batch_label( $batch ) ),
 			esc_attr(
 				sprintf(
@@ -357,7 +365,13 @@ class Admin_Products {
 					self::batch_label( $batch )
 				)
 			),
-			$product_id
+			$product_id,
+			esc_attr__( 'Picture for this batch', 'woo-custom-discount' ),
+			$thumb !== ''
+				? '<img src="' . esc_url( $thumb ) . '" alt="">'
+				: '<span class="wcd-bchip__pic-empty" aria-hidden="true">+</span>',
+			$thumb !== '' ? ' has-image' : '',
+			$image_id
 		);
 	}
 
@@ -525,12 +539,39 @@ class Admin_Products {
 		$managed = isset( $_POST['managed'] ) ? array_map( 'intval', (array) $_POST['managed'] ) : array();
 		$chosen  = isset( $_POST['batches'] ) ? (array) wp_unslash( $_POST['batches'] ) : array();
 
+		$pictures = isset( $_POST['batch_images'] ) ? (array) wp_unslash( $_POST['batch_images'] ) : array();
+
 		$changed = 0;
 
 		foreach ( $shown as $product_id ) {
 			$checked = isset( $chosen[ $product_id ] ) ? array_map( 'intval', (array) $chosen[ $product_id ] ) : array();
+			$touched = Rules::set_product_batches( $product_id, $checked, $managed );
 
-			if ( Rules::set_product_batches( $product_id, $checked, $managed ) ) {
+			// Pictures are saved for the batches the product is in after the
+			// change, so removing a batch takes its picture with it rather than
+			// leaving one behind for a batch nobody can see.
+			$before = Variations::images_for( $product_id );
+			$after  = array();
+
+			foreach ( $checked as $batch_id ) {
+				$chosen_image = isset( $pictures[ $product_id ][ $batch_id ] )
+					? (int) $pictures[ $product_id ][ $batch_id ]
+					: 0;
+
+				if ( $chosen_image > 0 ) {
+					$after[ $batch_id ] = $chosen_image;
+				}
+			}
+
+			if ( $before !== $after ) {
+				foreach ( array_keys( $before + $after ) as $batch_id ) {
+					Variations::set_image( $product_id, (int) $batch_id, $after[ $batch_id ] ?? 0 );
+				}
+
+				$touched = true;
+			}
+
+			if ( $touched ) {
 				++$changed;
 			}
 		}

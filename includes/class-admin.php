@@ -104,6 +104,10 @@ class Admin {
 
 		wp_enqueue_style( 'woocommerce_admin_styles' );
 		wp_enqueue_script( 'wc-enhanced-select' );
+
+		// The media library, for choosing a picture per batch. WordPress's own
+		// frame rather than a file field: these pictures are already uploaded.
+		wp_enqueue_media();
 		wp_enqueue_style( 'wcd-admin', WCD_URL . 'assets/admin.css', array(), WCD_VERSION );
 		wp_enqueue_script( 'wcd-admin', WCD_URL . 'assets/admin.js', array(), WCD_VERSION, true );
 	}
