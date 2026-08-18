@@ -93,8 +93,110 @@
 		} );
 	}
 
+	/* --------------------------------------------------------------------
+	 * Batch chips on the product list
+	 * ----------------------------------------------------------------- */
+
+	/**
+	 * Builds a chip, hidden input and all, so adding one needs no page reload.
+	 */
+	function makeChip( productId, batchId, label, removeLabel ) {
+		var chip = document.createElement( 'span' );
+
+		chip.className = 'wcd-bchip';
+		chip.setAttribute( 'data-batch', batchId );
+
+		var text = document.createElement( 'span' );
+		text.className = 'wcd-bchip__label';
+		text.textContent = label;
+
+		var button = document.createElement( 'button' );
+		button.type = 'button';
+		button.className = 'wcd-bchip__x';
+		button.setAttribute( 'data-wcd-remove', '' );
+		button.setAttribute( 'aria-label', removeLabel );
+		button.innerHTML = '&times;';
+
+		var input = document.createElement( 'input' );
+		input.type = 'hidden';
+		input.name = 'batches[' + productId + '][]';
+		input.value = batchId;
+
+		chip.appendChild( text );
+		chip.appendChild( button );
+		chip.appendChild( input );
+
+		return chip;
+	}
+
+	function bindChips() {
+		document.addEventListener( 'change', function ( event ) {
+			var picker = event.target.closest( '[data-wcd-add]' );
+
+			if ( ! picker || ! picker.value ) {
+				return;
+			}
+
+			var row = picker.closest( '[data-wcd-batches]' );
+			var chips = row ? row.querySelector( '[data-wcd-chips]' ) : null;
+
+			if ( ! row || ! chips ) {
+				return;
+			}
+
+			var option = picker.options[ picker.selectedIndex ];
+
+			chips.appendChild(
+				makeChip(
+					row.getAttribute( 'data-product' ),
+					picker.value,
+					option.getAttribute( 'data-label' ) || option.textContent,
+					option.getAttribute( 'data-label' ) || option.textContent
+				)
+			);
+
+			// Hidden rather than removed, so it can come back if the chip goes.
+			option.hidden = true;
+
+			picker.value = '';
+			row.classList.add( 'is-dirty' );
+		} );
+
+		document.addEventListener( 'click', function ( event ) {
+			var remove = event.target.closest( '[data-wcd-remove]' );
+
+			if ( ! remove ) {
+				return;
+			}
+
+			event.preventDefault();
+
+			var chip = remove.closest( '.wcd-bchip' );
+			var row = remove.closest( '[data-wcd-batches]' );
+
+			if ( ! chip || ! row ) {
+				return;
+			}
+
+			var batchId = chip.getAttribute( 'data-batch' );
+			var picker = row.querySelector( '[data-wcd-add]' );
+
+			if ( picker ) {
+				var option = picker.querySelector( 'option[value="' + batchId + '"]' );
+
+				if ( option ) {
+					option.hidden = false;
+				}
+			}
+
+			chip.remove();
+			row.classList.add( 'is-dirty' );
+		} );
+	}
+
 	function start() {
 		bindBands();
+		bindChips();
 
 		document.querySelectorAll( '.wcd-form' ).forEach( function ( form ) {
 			if ( ! form.querySelector( '[data-wcd-scope]' ) ) {

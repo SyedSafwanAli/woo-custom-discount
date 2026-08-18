@@ -1,6 +1,6 @@
 <?php
 /**
- * The product-by-batch assignment grid.
+ * The product-to-batch assignment screen.
  *
  * @package WooCustomDiscount
  */
@@ -14,29 +14,26 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Assigns products to expiry batches from one screen.
  *
- * The batch editor asks the question the wrong way round for day-to-day work.
- * It asks "which products are in the August batch"; the shop owner is thinking
- * "this Co Q-10 — some of it expires in August and some in December". Putting
- * one product into three batches meant opening three separate editors and
- * finding the same product three times.
+ * The batch editor asks the question the wrong way round for daily work. It asks
+ * "which products are in the August batch"; the shop owner is thinking "this
+ * Co Q-10 — some of it expires in August and some in December". Putting one
+ * product into three batches meant opening three editors and finding the same
+ * product three times.
  *
- * So this screen turns the table on its side: products down, batches across,
- * a checkbox where they meet. Two batches on one product is two ticks, and the
- * whole picture is visible at once.
+ * This was first built as a matrix — products down, batches across, a tick where
+ * they meet — which reads beautifully at three batches and falls apart at twenty.
+ * Twenty columns of checkboxes want about 2,000px of screen, so most of them are
+ * always hidden, and a hidden column is an assignment nobody can see.
+ *
+ * So the batches live under each product's name instead, as chips. A row shows
+ * only the batches that product is actually in, which makes the layout
+ * indifferent to how many batches exist — three or thirty, the row is the same
+ * width.
  */
 class Admin_Products {
 
 	/** Rows per page. */
 	private const PER_PAGE = 25;
-
-	/**
-	 * How many batch columns fit before the table outgrows the screen.
-	 *
-	 * Measured rather than guessed: the name, two prices and the campaign take
-	 * roughly 500px, and each batch column 78px. Eight columns lands near
-	 * 1,120px, which sits inside a normal admin content area.
-	 */
-	private const COMFORTABLE_COLUMNS = 8;
 
 	/**
 	 * Hooks the save handler.
@@ -49,10 +46,10 @@ class Admin_Products {
 	 * Renders the tab.
 	 */
 	public static function render(): void {
-		$batches = self::visible_batches();
+		$batches = self::batches();
 
 		echo '<p class="wcd-intro">';
-		esc_html_e( 'Tick where a product meets a batch. A product can sit in several — some stock expiring sooner, some later — and each batch carries its own discount.', 'woo-custom-discount' );
+		esc_html_e( 'Each product shows the batches it is in. A product can sit in several — some stock expiring sooner, some later — and each batch carries its own discount.', 'woo-custom-discount' );
 		echo '</p>';
 
 		if ( $batches === array() ) {
@@ -63,12 +60,12 @@ class Admin_Products {
 			return;
 		}
 
-		self::render_filters();
+		self::render_filters( $batches );
 
 		$query = self::query_products();
 
 		if ( ! $query->have_posts() ) {
-			echo '<div class="wcd-empty"><p>' . esc_html__( 'No products match that. Try clearing the search or the category.', 'woo-custom-discount' ) . '</p></div>';
+			echo '<div class="wcd-empty"><p>' . esc_html__( 'No products match that. Try clearing the search or the filters.', 'woo-custom-discount' ) . '</p></div>';
 
 			return;
 		}
@@ -78,27 +75,30 @@ class Admin_Products {
 
 		self::render_pagination( $query, 'top' );
 
-		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" class="wcd-grid-form">';
+		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" class="wcd-plist-form">';
 		wp_nonce_field( 'wcd_save_products' );
 		echo '<input type="hidden" name="action" value="wcd_save_products">';
 
-		// Carries the current view back, so saving returns to the same page and
-		// the same search rather than dumping the reader at the start.
 		foreach ( self::current_args() as $key => $value ) {
 			printf( '<input type="hidden" name="view[%s]" value="%s">', esc_attr( $key ), esc_attr( (string) $value ) );
 		}
 
-		// Which batches this submission is allowed to change. Without it, a
-		// batch whose column is hidden would be emptied on save.
+		// Every batch is offered in every picker, so a save is free to change any
+		// of them. The matrix had to name the ones it was allowed to touch,
+		// because the columns it hid would otherwise have been wiped.
 		foreach ( $batches as $batch ) {
 			printf( '<input type="hidden" name="managed[]" value="%d">', (int) $batch['id'] );
 		}
 
-		self::render_table( $product_ids, $batches, $batch_map );
+		echo '<div class="wcd-plist">';
 
-		// Sticky, because ticking your way down twenty-five rows and then having
-		// to hunt for Save is how a page of work gets lost.
-		echo '<div class="wcd-grid-actions">';
+		foreach ( $product_ids as $product_id ) {
+			self::render_row( $product_id, $batches, $batch_map[ $product_id ] ?? array() );
+		}
+
+		echo '</div>';
+
+		echo '<div class="wcd-plist-actions">';
 		submit_button( __( 'Save this page', 'woo-custom-discount' ), 'primary', 'submit', false );
 		echo ' <span class="description">' . esc_html__( 'Only the products shown here are changed.', 'woo-custom-discount' ) . '</span>';
 		echo '</div>';
@@ -111,17 +111,19 @@ class Admin_Products {
 	}
 
 	/**
-	 * Search, category and a filter for what to show.
+	 * Search, category, and a filter for one batch.
+	 *
+	 * @param array<int,array<string,mixed>> $batches Available batches.
 	 */
-	private static function render_filters(): void {
+	private static function render_filters( array $batches ): void {
 		$args = self::current_args();
 
-		echo '<form method="get" class="wcd-grid-filters">';
+		echo '<form method="get" class="wcd-plist-filters">';
 		echo '<input type="hidden" name="page" value="' . esc_attr( Admin::SLUG ) . '">';
 		echo '<input type="hidden" name="tab" value="products">';
 
 		printf(
-			'<input type="search" name="s" value="%1$s" placeholder="%2$s" class="wcd-grid-search">',
+			'<input type="search" name="s" value="%1$s" placeholder="%2$s" class="wcd-plist-search">',
 			esc_attr( (string) ( $args['s'] ?? '' ) ),
 			esc_attr__( 'Search by name or SKU…', 'woo-custom-discount' )
 		);
@@ -150,10 +152,25 @@ class Admin_Products {
 			echo '</select>';
 		}
 
+		// Replaces what a column gave: a way to see one batch's contents.
+		printf( '<select name="batch"><option value="">%s</option>', esc_html__( 'Any batch', 'woo-custom-discount' ) );
+
+		foreach ( $batches as $batch ) {
+			printf(
+				'<option value="%1$d"%2$s>%3$s (%4$d)</option>',
+				(int) $batch['id'],
+				selected( (int) ( $args['batch'] ?? 0 ), (int) $batch['id'], false ),
+				esc_html( self::batch_label( $batch ) ),
+				count( $batch['products'] )
+			);
+		}
+
+		echo '</select>';
+
 		$shows = array(
-			''         => __( 'All products', 'woo-custom-discount' ),
-			'batched'  => __( 'Only those in a batch', 'woo-custom-discount' ),
-			'unbatched' => __( 'Only those in no batch', 'woo-custom-discount' ),
+			''          => __( 'All products', 'woo-custom-discount' ),
+			'batched'   => __( 'In some batch', 'woo-custom-discount' ),
+			'unbatched' => __( 'In no batch', 'woo-custom-discount' ),
 		);
 
 		echo '<select name="show">';
@@ -169,40 +186,9 @@ class Admin_Products {
 
 		echo '</select>';
 
-		// Only worth offering once there are more batches than fit.
-		$total = count( self::all_batches() );
-
-		if ( $total > self::COMFORTABLE_COLUMNS ) {
-			$choice  = (string) ( $args['cols'] ?? '' );
-			$columns = array(
-				'6'   => __( 'Soonest 6 months', 'woo-custom-discount' ),
-				'12'  => __( 'Soonest 12 months', 'woo-custom-discount' ),
-				'all' => sprintf(
-					/* translators: %d: number of batches. */
-					__( 'All %d batches', 'woo-custom-discount' ),
-					$total
-				),
-			);
-
-			echo '<select name="cols">';
-
-			foreach ( $columns as $key => $label ) {
-				$selected = $choice === $key || ( $choice === '' && $key === (string) self::COMFORTABLE_COLUMNS );
-
-				printf(
-					'<option value="%1$s"%2$s>%3$s</option>',
-					esc_attr( $key ),
-					selected( $selected, true, false ),
-					esc_html( $label )
-				);
-			}
-
-			echo '</select>';
-		}
-
 		submit_button( __( 'Filter', 'woo-custom-discount' ), 'secondary', '', false );
 
-		if ( self::current_args() !== array() ) {
+		if ( $args !== array() ) {
 			printf(
 				' <a class="button-link" href="%1$s">%2$s</a>',
 				esc_url( Admin::url( 'products' ) ),
@@ -214,49 +200,11 @@ class Admin_Products {
 	}
 
 	/**
-	 * The grid itself.
-	 *
-	 * @param int[]                          $product_ids Products on this page.
-	 * @param array<int,array<string,mixed>> $batches     Batch columns.
-	 * @param array<int,int[]>               $batch_map   Product => batch IDs.
-	 */
-	private static function render_table( array $product_ids, array $batches, array $batch_map ): void {
-		echo '<div class="wcd-grid-wrap"><table class="widefat striped wcd-grid"><thead><tr>';
-
-		echo '<th class="wcd-grid-name">' . esc_html__( 'Product', 'woo-custom-discount' ) . '</th>';
-		echo '<th class="wcd-num">' . esc_html__( 'Regular', 'woo-custom-discount' ) . '</th>';
-		echo '<th class="wcd-num">' . esc_html__( 'Now', 'woo-custom-discount' ) . '</th>';
-
-		foreach ( $batches as $batch ) {
-			$expired = Rules::is_batch_expired( $batch );
-
-			printf(
-				'<th class="wcd-grid-batch%1$s"><span class="wcd-grid-batch__month">%2$s</span><span class="wcd-grid-batch__pct">%3$s%%</span>%4$s</th>',
-				$expired ? ' is-expired' : '',
-				esc_html( self::short_month( (string) $batch['expiry_ym'] ) ),
-				esc_html( Admin_Rules::percent_label( $batch['discount_percent'] ) ),
-				$expired
-					? '<span class="wcd-grid-batch__note">' . esc_html__( 'expired', 'woo-custom-discount' ) . '</span>'
-					: ( $batch['enabled'] ? '' : '<span class="wcd-grid-batch__note">' . esc_html__( 'paused', 'woo-custom-discount' ) . '</span>' )
-			);
-		}
-
-		echo '<th>' . esc_html__( 'Campaign', 'woo-custom-discount' ) . '</th>';
-		echo '</tr></thead><tbody>';
-
-		foreach ( $product_ids as $product_id ) {
-			self::render_row( $product_id, $batches, $batch_map[ $product_id ] ?? array() );
-		}
-
-		echo '</tbody></table></div>';
-	}
-
-	/**
-	 * One product row.
+	 * One product, with its batches beneath the name.
 	 *
 	 * @param int                            $product_id Product.
-	 * @param array<int,array<string,mixed>> $batches    Batch columns.
-	 * @param int[]                          $in         Batches it is already in.
+	 * @param array<int,array<string,mixed>> $batches    All batches.
+	 * @param int[]                          $in         Batches it is in.
 	 */
 	private static function render_row( int $product_id, array $batches, array $in ): void {
 		$product = wc_get_product( $product_id );
@@ -275,91 +223,148 @@ class Admin_Products {
 			$campaign = $rule ? (string) $rule['title'] : '';
 		}
 
-		echo '<tr>';
+		$by_id = array();
 
-		// Batches this product is in whose column is not on screen. Hiding a
-		// column must not hide the fact that the product is assigned to it.
-		$shown_ids = wp_list_pluck( $batches, 'id' );
-		$offscreen = array_diff( $in, array_map( 'intval', $shown_ids ) );
-
-		$note = '';
-
-		if ( $offscreen !== array() ) {
-			$names = array();
-
-			foreach ( $offscreen as $rule_id ) {
-				$rule = Rules::get( (int) $rule_id );
-
-				if ( $rule ) {
-					$names[] = self::short_month( (string) $rule['expiry_ym'] );
-				}
-			}
-
-			$note = sprintf(
-				'<span class="wcd-grid-more" title="%1$s">%2$s</span>',
-				esc_attr(
-					sprintf(
-						/* translators: %s: comma-separated list of months. */
-						__( 'Also in: %s', 'woo-custom-discount' ),
-						implode( ', ', $names )
-					)
-				),
-				esc_html(
-					sprintf(
-						/* translators: %d: number of batches. */
-						_n( '+%d more batch', '+%d more batches', count( $offscreen ), 'woo-custom-discount' ),
-						count( $offscreen )
-					)
-				)
-			);
+		foreach ( $batches as $batch ) {
+			$by_id[ (int) $batch['id'] ] = $batch;
 		}
 
+		echo '<div class="wcd-plist__row">';
+
+		// --- Name, SKU, prices ----------------------------------------------
+		echo '<div class="wcd-plist__head">';
+
 		printf(
-			'<td class="wcd-grid-name"><a href="%1$s">%2$s</a>%3$s%4$s</td>',
+			'<div class="wcd-plist__title"><a href="%1$s">%2$s</a>%3$s</div>',
 			esc_url( (string) get_edit_post_link( $product_id ) ),
 			esc_html( $product->get_name() ),
 			$product->get_sku() !== ''
-				? '<span class="wcd-grid-sku">' . esc_html( $product->get_sku() ) . '</span>'
-				: '',
-			$note
-		);
-
-		printf( '<td class="wcd-num">%s</td>', esc_html( $regular > 0 ? number_format( $regular ) : '—' ) );
-
-		printf(
-			'<td class="wcd-num">%1$s%2$s</td>',
-			esc_html( $now > 0 ? number_format( $now ) : '—' ),
-			$outcome !== null && $outcome['percent'] > 0
-				? '<span class="wcd-grid-pct">' . esc_html( Admin_Rules::percent_label( $outcome['percent'] ) ) . '%</span>'
+				? '<span class="wcd-plist__sku">' . esc_html( $product->get_sku() ) . '</span>'
 				: ''
 		);
 
-		foreach ( $batches as $batch ) {
+		echo '<div class="wcd-plist__prices">';
+
+		if ( $regular > 0 && $now > 0 && $now < $regular ) {
 			printf(
-				'<td class="wcd-grid-cell"><label><input type="checkbox" name="batches[%1$d][]" value="%2$d"%3$s><span class="screen-reader-text">%4$s</span></label></td>',
-				$product_id,
-				(int) $batch['id'],
-				checked( in_array( (int) $batch['id'], $in, true ), true, false ),
-				esc_html( $batch['title'] )
+				'<span class="wcd-plist__was">%1$s</span><span class="wcd-plist__now">%2$s</span>',
+				esc_html( number_format( $regular ) ),
+				esc_html( number_format( $now ) )
+			);
+		} else {
+			printf(
+				'<span class="wcd-plist__now">%s</span>',
+				esc_html( $now > 0 ? number_format( $now ) : '—' )
 			);
 		}
 
+		if ( $outcome !== null && $outcome['percent'] > 0 ) {
+			printf(
+				'<span class="wcd-plist__pct">%s%%</span>',
+				esc_html( Admin_Rules::percent_label( $outcome['percent'] ) )
+			);
+		}
+
+		echo '</div>';
+
 		printf(
-			'<td class="wcd-grid-campaign">%s</td>',
-			$campaign !== '' ? esc_html( $campaign ) : '<span class="wcd-grid-dash">—</span>'
+			'<div class="wcd-plist__campaign">%s</div>',
+			$campaign !== ''
+				? esc_html( $campaign )
+				: '<span class="wcd-plist__dash">' . esc_html__( 'no campaign', 'woo-custom-discount' ) . '</span>'
 		);
 
-		// Every product on the page is listed, so a row whose boxes are all
-		// unticked is still processed and can be emptied.
+		echo '</div>';
+
+		// --- Batches ---------------------------------------------------------
+		printf( '<div class="wcd-plist__batches" data-wcd-batches data-product="%d">', $product_id );
+
+		echo '<span class="wcd-plist__chips" data-wcd-chips>';
+
+		foreach ( $in as $batch_id ) {
+			$batch = $by_id[ (int) $batch_id ] ?? null;
+
+			if ( $batch === null ) {
+				continue;
+			}
+
+			echo self::chip_html( $product_id, $batch ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped when built.
+		}
+
+		echo '</span>';
+
+		// The picker lists every batch; the script hides the ones already on the
+		// row, so the same batch cannot be added twice.
+		echo '<select class="wcd-plist__add" data-wcd-add>';
+		printf( '<option value="">%s</option>', esc_html__( '+ Add to batch', 'woo-custom-discount' ) );
+
+		foreach ( $batches as $batch ) {
+			printf(
+				'<option value="%1$d" data-label="%2$s"%3$s>%2$s</option>',
+				(int) $batch['id'],
+				esc_attr( self::batch_label( $batch ) ),
+				in_array( (int) $batch['id'], $in, true ) ? ' hidden' : ''
+			);
+		}
+
+		echo '</select>';
+		echo '</div>';
+
 		printf( '<input type="hidden" name="shown[]" value="%d">', $product_id );
 
-		echo '</tr>';
+		echo '</div>';
+	}
+
+	/**
+	 * One batch chip, carrying its own hidden input.
+	 *
+	 * The input travels with the chip so that removing one removes the other —
+	 * there is no separate list to keep in step.
+	 *
+	 * @param array<string,mixed> $batch Batch data.
+	 */
+	private static function chip_html( int $product_id, array $batch ): string {
+		return sprintf(
+			'<span class="wcd-bchip" data-batch="%1$d">
+				<span class="wcd-bchip__label">%2$s</span>
+				<button type="button" class="wcd-bchip__x" data-wcd-remove aria-label="%3$s">&times;</button>
+				<input type="hidden" name="batches[%4$d][]" value="%1$d">
+			</span>',
+			(int) $batch['id'],
+			esc_html( self::batch_label( $batch ) ),
+			esc_attr(
+				sprintf(
+					/* translators: %s: batch name. */
+					__( 'Remove from %s', 'woo-custom-discount' ),
+					self::batch_label( $batch )
+				)
+			),
+			$product_id
+		);
+	}
+
+	/**
+	 * "Sep 2026 · 60%" — month and discount, which is what tells two apart.
+	 *
+	 * @param array<string,mixed> $batch Batch data.
+	 */
+	private static function batch_label( array $batch ): string {
+		$month = $batch['expiry_ym']
+			? Importer::format_expiry( (string) $batch['expiry_ym'] )
+			: (string) $batch['title'];
+
+		return sprintf(
+			'%1$s · %2$s%%',
+			$month,
+			Admin_Rules::percent_label( (float) $batch['discount_percent'] )
+		);
 	}
 
 	/**
 	 * Paging links.
 	 *
 	 * @param \WP_Query $query The product query.
+	 * @param string    $where top or bottom.
 	 */
 	private static function render_pagination( \WP_Query $query, string $where = 'bottom' ): void {
 		if ( $query->max_num_pages < 2 ) {
@@ -377,37 +382,38 @@ class Admin_Products {
 			)
 		);
 
-		if ( $links ) {
-			printf(
-				'<div class="tablenav wcd-grid-nav wcd-grid-nav--%4$s"><div class="tablenav-pages">
-					<span class="displaying-num">%2$s</span>
-					<span class="pagination-links">%1$s</span>
-				</div></div>',
-				$links, // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- built by core.
-				esc_html(
-					sprintf(
-						/* translators: 1: first product on this page, 2: last, 3: total. */
-						__( 'Showing %1$d–%2$d of %3$d products', 'woo-custom-discount' ),
-						( ( self::current_page() - 1 ) * self::PER_PAGE ) + 1,
-						min( self::current_page() * self::PER_PAGE, (int) $query->found_posts ),
-						(int) $query->found_posts
-					)
-				),
-				'',
-				esc_attr( $where )
-			);
+		if ( ! $links ) {
+			return;
 		}
+
+		printf(
+			'<div class="tablenav wcd-grid-nav wcd-grid-nav--%3$s"><div class="tablenav-pages">
+				<span class="displaying-num">%2$s</span>
+				<span class="pagination-links">%1$s</span>
+			</div></div>',
+			$links, // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- built by core.
+			esc_html(
+				sprintf(
+					/* translators: 1: first on this page, 2: last, 3: total. */
+					__( 'Showing %1$d–%2$d of %3$d products', 'woo-custom-discount' ),
+					( ( self::current_page() - 1 ) * self::PER_PAGE ) + 1,
+					min( self::current_page() * self::PER_PAGE, (int) $query->found_posts ),
+					(int) $query->found_posts
+				)
+			),
+			esc_attr( $where )
+		);
 	}
 
 	/**
-	 * Every batch worth offering as a column, soonest first.
+	 * Every batch worth offering, soonest first.
 	 *
-	 * Expired ones are left out unless they still hold products, which keeps the
-	 * table readable without hiding an assignment someone might need to undo.
+	 * Unlike the matrix, this list has no reason to be trimmed: it feeds a
+	 * dropdown, which is the same size whether it holds three entries or thirty.
 	 *
 	 * @return array<int,array<string,mixed>>
 	 */
-	private static function all_batches(): array {
+	private static function batches(): array {
 		$out = array();
 
 		foreach ( Rules::query( array( 'type' => Rules::TYPE_BATCH ) ) as $batch ) {
@@ -427,43 +433,6 @@ class Admin_Products {
 	}
 
 	/**
-	 * The batches actually shown as columns.
-	 *
-	 * A full year of monthly batches is fifteen columns, and the table then
-	 * wants about 1,770px — wider than the screen, so it scrolls sideways and
-	 * every column past the first few is guesswork. Showing the soonest few by
-	 * default keeps it readable; the rest are one click away, and a product
-	 * assigned to a hidden batch is flagged on its row rather than lost.
-	 *
-	 * @return array<int,array<string,mixed>>
-	 */
-	private static function visible_batches(): array {
-		$all   = self::all_batches();
-		$limit = self::column_limit( count( $all ) );
-
-		return $limit === 0 ? $all : array_slice( $all, 0, $limit );
-	}
-
-	/**
-	 * How many columns to draw. Zero means all of them.
-	 */
-	private static function column_limit( int $total ): int {
-		$args   = self::current_args();
-		$choice = (string) ( $args['cols'] ?? '' );
-
-		if ( $choice === 'all' ) {
-			return 0;
-		}
-
-		if ( in_array( $choice, array( '6', '12' ), true ) ) {
-			return (int) $choice;
-		}
-
-		// Nothing chosen: show everything while it still fits, then cap.
-		return $total > self::COMFORTABLE_COLUMNS ? self::COMFORTABLE_COLUMNS : 0;
-	}
-
-	/**
 	 * The product query for the current view.
 	 */
 	private static function query_products(): \WP_Query {
@@ -471,10 +440,8 @@ class Admin_Products {
 
 		$query_args = array(
 			'post_type'      => 'product',
-			// The same statuses the price engine works on. Listing drafts here
-			// showed a discount beside a price that had not moved, because the
-			// engine never touches them — a number that looked like a bug in the
-			// pricing when it was only a bug in this list.
+			// The same statuses the price engine works on, so a discount is
+			// never shown beside a price that has not moved.
 			'post_status'    => array( 'publish', 'private' ),
 			'posts_per_page' => self::PER_PAGE,
 			'paged'          => self::current_page(),
@@ -498,25 +465,36 @@ class Admin_Products {
 			);
 		}
 
+		$limit = null;
+
+		if ( ! empty( $args['batch'] ) ) {
+			$rule  = Rules::get( (int) $args['batch'] );
+			$limit = $rule ? $rule['products'] : array();
+		}
+
 		$show = (string) ( $args['show'] ?? '' );
 
 		if ( $show === 'batched' || $show === 'unbatched' ) {
 			$batched = Rules::batch_product_ids();
 
 			if ( $show === 'batched' ) {
-				// post__in of an empty array would return everything, which is
-				// the opposite of what "only those in a batch" means.
-				$query_args['post__in'] = $batched === array() ? array( 0 ) : $batched;
+				$limit = $limit === null ? $batched : array_intersect( $limit, $batched );
 			} elseif ( $batched !== array() ) {
 				$query_args['post__not_in'] = $batched;
 			}
+		}
+
+		if ( $limit !== null ) {
+			// An empty post__in returns everything, which is the opposite of
+			// what a filter that matched nothing should do.
+			$query_args['post__in'] = $limit === array() ? array( 0 ) : array_values( $limit );
 		}
 
 		return new \WP_Query( $query_args );
 	}
 
 	/**
-	 * Saves the ticks on one page.
+	 * Saves the batches on one page of products.
 	 */
 	public static function handle_save(): void {
 		check_admin_referer( 'wcd_save_products' );
@@ -527,12 +505,12 @@ class Admin_Products {
 
 		$shown   = isset( $_POST['shown'] ) ? array_map( 'intval', (array) $_POST['shown'] ) : array();
 		$managed = isset( $_POST['managed'] ) ? array_map( 'intval', (array) $_POST['managed'] ) : array();
-		$ticked  = isset( $_POST['batches'] ) ? (array) wp_unslash( $_POST['batches'] ) : array();
+		$chosen  = isset( $_POST['batches'] ) ? (array) wp_unslash( $_POST['batches'] ) : array();
 
 		$changed = 0;
 
 		foreach ( $shown as $product_id ) {
-			$checked = isset( $ticked[ $product_id ] ) ? array_map( 'intval', (array) $ticked[ $product_id ] ) : array();
+			$checked = isset( $chosen[ $product_id ] ) ? array_map( 'intval', (array) $chosen[ $product_id ] ) : array();
 
 			if ( Rules::set_product_batches( $product_id, $checked, $managed ) ) {
 				++$changed;
@@ -580,7 +558,7 @@ class Admin_Products {
 	private static function current_args(): array {
 		$out = array();
 
-		foreach ( array( 's', 'pcat', 'show', 'cols' ) as $key ) {
+		foreach ( array( 's', 'pcat', 'show', 'batch' ) as $key ) {
 			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- navigation only.
 			if ( isset( $_GET[ $key ] ) && $_GET[ $key ] !== '' ) {
 				// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- navigation only.
@@ -592,23 +570,10 @@ class Admin_Products {
 	}
 
 	/**
-	 * Which page of the grid is being viewed.
+	 * Which page of the list is being viewed.
 	 */
 	private static function current_page(): int {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- navigation only.
 		return isset( $_GET['paged'] ) ? max( 1, (int) $_GET['paged'] ) : 1;
-	}
-
-	/**
-	 * "Aug 26" — short enough to sit above a checkbox column.
-	 */
-	private static function short_month( string $expiry_ym ): string {
-		if ( ! preg_match( '/^(\d{4})(\d{2})$/', $expiry_ym, $m ) ) {
-			return $expiry_ym;
-		}
-
-		$timestamp = (int) gmmktime( 0, 0, 0, (int) $m[2], 1, (int) $m[1] );
-
-		return (string) gmdate( 'M y', $timestamp );
 	}
 }

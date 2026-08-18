@@ -476,9 +476,9 @@
 	max-width: 100%;
 }
 
-/* --- Assignment grid ----------------------------------------------------- */
+/* --- Product list with batch chips --------------------------------------- */
 
-.wcd-admin .wcd-grid-filters {
+.wcd-admin .wcd-plist-filters {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
@@ -486,218 +486,170 @@
 	margin: 1em 0 1.25em;
 }
 
-.wcd-admin .wcd-grid-search {
+.wcd-admin .wcd-plist-search {
 	min-width: 18em;
 }
 
-.wcd-admin .wcd-grid-wrap {
+.wcd-admin .wcd-plist {
 	border: 1px solid #dcdcde;
-	/* Square at the bottom: the sticky Save bar sits flush underneath. */
 	border-radius: 4px 4px 0 0;
-}
-
-/* Only scroll sideways when the columns genuinely do not fit. A scroll
-   container on every screen would also stop the header sticking. */
-@media ( max-width: 1180px ) {
-	.wcd-admin .wcd-grid-wrap {
-		overflow-x: auto;
-	}
-}
-
-.wcd-admin table.wcd-grid {
-	border: 0;
-	margin: 0;
-}
-
-.wcd-admin table.wcd-grid th {
-	font-size: 11px;
-	text-transform: uppercase;
-	letter-spacing: 0.07em;
-	vertical-align: bottom;
-}
-
-/* The column titles have to stay in view: twenty rows down, a bare column of
-   checkboxes says nothing about which month it is. */
-@media ( min-width: 1181px ) {
-	.wcd-admin table.wcd-grid thead th {
-		position: sticky;
-		top: 32px;
-		z-index: 2;
-		background: #f6f7f7;
-		box-shadow: inset 0 -1px 0 #c3c4c7;
-	}
-}
-
-/* The table fills the screen, so the spare width has to land somewhere useful.
-   Explicit widths send it to the product name and the campaign, and keep the
-   batch columns narrow — a checkbox stretched across a wide column is a checkbox
-   nobody can tell the position of. */
-.wcd-admin .wcd-grid-name {
-	width: 38%;
-	min-width: 18em;
-}
-
-.wcd-admin table.wcd-grid .wcd-num {
-	width: 7em;
-}
-
-/* Frozen while the batch columns scroll past. With a year of monthly batches the
-   table is wider than the screen, and a column of bare checkboxes tells you
-   nothing once the product name has scrolled off the left. */
-.wcd-admin th.wcd-grid-name,
-.wcd-admin td.wcd-grid-name {
-	position: sticky;
-	left: 0;
-	z-index: 1;
 	background: #fff;
-	box-shadow: 1px 0 0 #dcdcde;
 }
 
-.wcd-admin table.wcd-grid tbody tr:nth-child( odd ) td.wcd-grid-name {
-	background: #f6f7f7;
+.wcd-admin .wcd-plist__row {
+	padding: 0.9em 1.1em;
+	border-bottom: 1px solid #f0f0f1;
 }
 
-.wcd-admin table.wcd-grid tbody tr:hover td.wcd-grid-name {
-	background: #f6f8ef;
+.wcd-admin .wcd-plist__row:last-child {
+	border-bottom: 0;
 }
 
-/* Above the row backgrounds, and above the sticky header's own layer. */
-@media ( min-width: 1181px ) {
-	.wcd-admin table.wcd-grid thead th.wcd-grid-name {
-		z-index: 3;
+.wcd-admin .wcd-plist__row:hover {
+	background: #fafbf7;
+}
+
+/* Name, prices and campaign on one line; the batches get their own beneath,
+   which is what stops the row widening as batches are added. */
+.wcd-admin .wcd-plist__head {
+	display: grid;
+	grid-template-columns: minmax( 0, 1fr ) 13em 14em;
+	align-items: baseline;
+	gap: 1em;
+}
+
+@media ( max-width: 960px ) {
+	.wcd-admin .wcd-plist__head {
+		grid-template-columns: minmax( 0, 1fr ) auto;
+	}
+
+	.wcd-admin .wcd-plist__campaign {
+		grid-column: 1 / -1;
 	}
 }
 
-.wcd-admin .wcd-grid-name a {
+.wcd-admin .wcd-plist__title a {
 	font-weight: 500;
 	text-decoration: none;
 }
 
-.wcd-admin .wcd-grid-more {
-	display: inline-block;
-	margin-top: 0.2em;
-	padding: 1px 7px;
-	border-radius: 999px;
-	background: #f0f4e4;
-	color: #46591d;
-	font-size: 11px;
-	font-weight: 600;
-	cursor: help;
-}
-
-.wcd-admin .wcd-grid-sku {
+.wcd-admin .wcd-plist__sku {
 	display: block;
 	font-size: 11px;
 	color: #8c8f94;
 	font-variant-numeric: tabular-nums;
 }
 
-/* The batch columns: month over percentage, so the header is scannable. */
-.wcd-admin th.wcd-grid-batch {
-	width: 6em;
-	min-width: 6em;
-	text-align: center;
-	line-height: 1.3;
+.wcd-admin .wcd-plist__prices {
+	display: flex;
+	align-items: baseline;
+	justify-content: flex-end;
+	gap: 0.5em;
+	font-variant-numeric: tabular-nums;
 	white-space: nowrap;
 }
 
-.wcd-admin .wcd-grid-batch__month {
-	display: block;
+.wcd-admin .wcd-plist__was {
+	color: #8c8f94;
+	text-decoration: line-through;
 	font-size: 12px;
+}
+
+.wcd-admin .wcd-plist__now {
+	font-weight: 600;
+}
+
+.wcd-admin .wcd-plist__pct {
+	padding: 1px 7px;
+	border-radius: 999px;
+	background: #f0f4e4;
+	color: #46591d;
+	font-size: 11px;
 	font-weight: 700;
-	text-transform: none;
-	letter-spacing: 0;
-	color: #1e2419;
 }
 
-.wcd-admin .wcd-grid-batch__pct {
-	display: block;
-	font-size: 11px;
-	font-weight: 600;
-	color: #5f7728;
-	font-variant-numeric: tabular-nums;
-}
-
-.wcd-admin .wcd-grid-batch__note {
-	display: block;
-	font-size: 10px;
-	font-weight: 400;
-	text-transform: lowercase;
-	letter-spacing: 0;
-	color: #b32d2e;
-}
-
-.wcd-admin th.wcd-grid-batch.is-expired .wcd-grid-batch__month,
-.wcd-admin th.wcd-grid-batch.is-expired .wcd-grid-batch__pct {
-	opacity: 0.55;
-}
-
-/* The batch columns are fenced off so it is obvious which one a tick is in. */
-.wcd-admin th.wcd-grid-batch,
-.wcd-admin td.wcd-grid-cell {
-	border-left: 1px solid #e6e7e9;
-}
-
-.wcd-admin th.wcd-grid-batch:first-of-type,
-.wcd-admin td.wcd-grid-cell:first-of-type {
-	border-left: 2px solid #dcdcde;
-}
-
-.wcd-admin td.wcd-grid-cell {
-	text-align: center;
-	vertical-align: middle;
-	padding: 0;
-}
-
-/* A bigger hit area than the checkbox itself — this grid gets a lot of clicks. */
-.wcd-admin td.wcd-grid-cell label {
-	display: block;
-	padding: 0.85em 0;
-	cursor: pointer;
-}
-
-.wcd-admin td.wcd-grid-cell label:hover {
-	background: #eef3e0;
-}
-
-.wcd-admin td.wcd-grid-cell input {
-	margin: 0;
-}
-
-/* Following a row across to the right column is the whole job here, so the
-   whole row lights up rather than just the cell under the pointer. */
-.wcd-admin table.wcd-grid tbody tr:hover > td {
-	background: #f6f8ef;
-}
-
-.wcd-admin .wcd-grid-pct {
-	display: block;
-	font-size: 11px;
-	font-weight: 600;
-	color: #5f7728;
-}
-
-.wcd-admin .wcd-grid-campaign {
-	width: 24%;
+.wcd-admin .wcd-plist__campaign {
 	font-size: 12.5px;
 	color: #50575e;
+	text-align: right;
 }
 
-.wcd-admin .wcd-grid-dash {
+.wcd-admin .wcd-plist__dash {
 	color: #c3c4c7;
 }
 
-/* Sticks to the bottom of the window, so Save is reachable from any row rather
-   than only after scrolling to the end of the page. */
-.wcd-admin .wcd-grid-actions {
+/* --- The chips themselves ------------------------------------------------ */
+
+.wcd-admin .wcd-plist__batches {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.4em;
+	margin-top: 0.6em;
+}
+
+.wcd-admin .wcd-plist__chips {
+	display: contents;
+}
+
+.wcd-admin .wcd-bchip {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35em;
+	padding: 3px 4px 3px 10px;
+	border-radius: 999px;
+	background: #eef3e0;
+	color: #3c4d18;
+	font-size: 12px;
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.wcd-admin button.wcd-bchip__x {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 17px;
+	height: 17px;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	background: rgba( 60, 77, 24, 0.12 );
+	color: #3c4d18;
+	font-size: 14px;
+	line-height: 1;
+	cursor: pointer;
+}
+
+.wcd-admin button.wcd-bchip__x:hover,
+.wcd-admin button.wcd-bchip__x:focus {
+	background: #b32d2e;
+	color: #fff;
+}
+
+.wcd-admin select.wcd-plist__add {
+	max-width: 15em;
+	height: 26px;
+	padding: 0 1.6em 0 0.6em;
+	font-size: 12px;
+	line-height: 1;
+	border-color: #dcdcde;
+	color: #50575e;
+}
+
+.wcd-admin .wcd-plist__row.is-dirty {
+	background: #fbfce9;
+	box-shadow: inset 3px 0 0 #8ba93d;
+}
+
+.wcd-admin .wcd-plist-actions {
 	position: sticky;
 	bottom: 0;
 	z-index: 3;
 	display: flex;
 	align-items: center;
 	gap: 0.75em;
-	margin: 0;
-	padding: 0.9em 1em;
+	padding: 0.9em 1.1em;
 	background: #fff;
 	border: 1px solid #dcdcde;
 	border-top: 0;
@@ -705,9 +657,15 @@
 	box-shadow: 0 -2px 8px rgba( 0, 0, 0, 0.05 );
 }
 
-.wcd-admin .wcd-grid-actions .description {
+.wcd-admin .wcd-plist-actions .description {
 	margin: 0;
 }
+
+/* Paging, shared by the product list.
+   The matrix that used to live here - products down, batches across - was
+   replaced by the chip list: twenty columns of checkboxes want about 2,000px
+   of screen, so most of them were always hidden, and a hidden column is an
+   assignment nobody can see. */
 
 /* --- Paging ------------------------------------------------------------- */
 
