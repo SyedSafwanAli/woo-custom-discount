@@ -301,15 +301,21 @@ class Admin_Products {
 
 		if ( $links ) {
 			printf(
-				'<div class="tablenav wcd-grid-nav wcd-grid-nav--%3$s"><div class="tablenav-pages"><span class="displaying-num">%2$s</span> %1$s</div></div>',
+				'<div class="tablenav wcd-grid-nav wcd-grid-nav--%4$s"><div class="tablenav-pages">
+					<span class="displaying-num">%2$s</span>
+					<span class="pagination-links">%1$s</span>
+				</div></div>',
 				$links, // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- built by core.
 				esc_html(
 					sprintf(
-						/* translators: %d: number of products. */
-						_n( '%d product', '%d products', (int) $query->found_posts, 'woo-custom-discount' ),
+						/* translators: 1: first product on this page, 2: last, 3: total. */
+						__( 'Showing %1$d–%2$d of %3$d products', 'woo-custom-discount' ),
+						( ( self::current_page() - 1 ) * self::PER_PAGE ) + 1,
+						min( self::current_page() * self::PER_PAGE, (int) $query->found_posts ),
 						(int) $query->found_posts
 					)
 				),
+				'',
 				esc_attr( $where )
 			);
 		}
