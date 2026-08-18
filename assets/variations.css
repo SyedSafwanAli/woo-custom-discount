@@ -1,26 +1,151 @@
 /**
- * Expiry buttons.
+ * The expiry chooser.
  *
- * The dropdown they drive is hidden rather than removed: WooCommerce's variation
- * script reads and writes it, and taking it out of the page would take the price,
- * the stock line and the add-to-cart button with it.
+ * A table rather than a row of pills: four dates, each with a discount and a
+ * price, line up into columns that can be read down. Pills made the shopper
+ * compare three numbers scattered across each one.
  */
 
 .wcd-swatches {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 8px;
-	margin: 0 0 10px;
+	margin: 0 0 14px;
 }
 
-/* The dropdown lives in here, out of sight but still in the page: WooCommerce's
- * variation script reads and writes it, and taking it out would take the price,
- * the stock line and the add-to-cart button with it.
+.wcd-swatches table.wcd-choice {
+	width: 100%;
+	margin: 0;
+	border: 1px solid #d8dcd0;
+	border-radius: 8px;
+	border-collapse: separate;
+	border-spacing: 0;
+	overflow: hidden;
+	background: #fff;
+	font-size: 15px;
+	line-height: 1.3;
+}
+
+.wcd-swatches table.wcd-choice tbody tr.wcd-choice__row {
+	cursor: pointer;
+	transition: background-color 0.12s ease;
+}
+
+.wcd-swatches table.wcd-choice tbody tr.wcd-choice__row + tr.wcd-choice__row td {
+	border-top: 1px solid #eceee7;
+}
+
+.wcd-swatches table.wcd-choice td {
+	padding: 11px 12px;
+	border: 0;
+	background: none;
+	vertical-align: middle;
+	color: #1e2419;
+}
+
+.wcd-swatches tr.wcd-choice__row:hover td {
+	background: #f6f8ef;
+}
+
+.wcd-swatches tr.wcd-choice__row:focus {
+	outline: none;
+}
+
+.wcd-swatches tr.wcd-choice__row:focus-visible td {
+	background: #f0f4e4;
+	box-shadow: inset 0 0 0 2px #5f7728;
+}
+
+/* --- The chosen row ------------------------------------------------------ */
+
+.wcd-swatches tr.wcd-choice__row.is-active td {
+	background: #f0f4e4;
+}
+
+.wcd-swatches tr.wcd-choice__row.is-active .wcd-choice__month {
+	font-weight: 700;
+}
+
+/* --- The radio mark ------------------------------------------------------ */
+
+.wcd-swatches td.wcd-choice__pick {
+	width: 1px;
+	padding-right: 0;
+}
+
+.wcd-swatches .wcd-choice__dot {
+	display: block;
+	width: 17px;
+	height: 17px;
+	border: 2px solid #c3c9b8;
+	border-radius: 50%;
+	background: #fff;
+	position: relative;
+}
+
+.wcd-swatches tr.wcd-choice__row:hover .wcd-choice__dot {
+	border-color: #8ba93d;
+}
+
+.wcd-swatches tr.wcd-choice__row.is-active .wcd-choice__dot {
+	border-color: #5f7728;
+}
+
+.wcd-swatches tr.wcd-choice__row.is-active .wcd-choice__dot::after {
+	content: "";
+	position: absolute;
+	inset: 3px;
+	border-radius: 50%;
+	background: #5f7728;
+}
+
+/* --- The columns --------------------------------------------------------- */
+
+.wcd-swatches .wcd-choice__month {
+	font-weight: 600;
+}
+
+.wcd-swatches .wcd-choice__off {
+	width: 1px;
+	white-space: nowrap;
+	font-size: 0.8em;
+	font-weight: 700;
+	color: #46591d;
+}
+
+.wcd-swatches .wcd-choice__price {
+	width: 1px;
+	white-space: nowrap;
+	text-align: right;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+}
+
+.wcd-swatches .wcd-choice__price del {
+	display: none;
+}
+
+.wcd-swatches .wcd-choice__price ins {
+	text-decoration: none;
+}
+
+/* A combination WooCommerce has ruled out should look spent, not merely
+   unselected. */
+.wcd-swatches tr.wcd-choice__row.is-unavailable {
+	cursor: not-allowed;
+}
+
+.wcd-swatches tr.wcd-choice__row.is-unavailable td {
+	opacity: 0.4;
+	text-decoration: line-through;
+}
+
+/* --- The dropdown it drives ---------------------------------------------- */
+
+/* Out of sight but still in the page: WooCommerce's variation script reads and
+ * writes it, and taking it out would take the price, the stock line and the
+ * add-to-cart button with it.
  *
  * Hiding the select where it stood meant out-styling whatever the theme had
- * already said about it — a fight to be re-fought with every theme and every
- * update, and one that was already being lost. Nothing else styles this wrapper,
- * so no !important is needed and none is used. */
+ * already said about it. Nothing else styles this wrapper, so no !important is
+ * needed and none is used. */
 .wcd-native {
 	position: absolute;
 	width: 1px;
@@ -34,80 +159,52 @@
 	border: 0;
 }
 
-/* Clicking the chosen button already clears it. */
+/* Clicking the chosen row already clears it. */
 .wcd-swatches ~ .reset_variations,
 .wcd-native ~ .reset_variations {
 	display: none;
 }
 
+/* --- Where the chooser sits ---------------------------------------------- */
 
-.wcd-swatches button.wcd-swatch {
+/* Below the price and the button rather than above them. WooCommerce puts the
+ * attribute table first; these two are siblings inside the form, so ordering
+ * them is all it takes — no template override, nothing to re-apply after an
+ * update. */
+.woocommerce div.product form.variations_form {
 	display: flex;
 	flex-direction: column;
-	align-items: flex-start;
-	gap: 2px;
-	min-width: 8.5em;
-	margin: 0;
-	padding: 9px 14px;
-	border: 1.5px solid #d8dcd0;
-	border-radius: 8px;
-	background: #fff;
-	color: #1e2419;
-	font: inherit;
-	line-height: 1.25;
-	text-align: left;
-	text-transform: none;
-	letter-spacing: 0;
-	cursor: pointer;
-	transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
-.wcd-swatches button.wcd-swatch:hover {
-	border-color: #8ba93d;
-	background: #f6f8ef;
+.woocommerce div.product form.variations_form > table.variations {
+	order: 2;
+	margin-bottom: 0;
 }
 
-.wcd-swatches button.wcd-swatch.is-active {
-	border-color: #5f7728;
-	background: #f0f4e4;
-	box-shadow: 0 0 0 1px #5f7728;
+.woocommerce div.product form.variations_form > .single_variation_wrap {
+	order: 1;
 }
 
-.wcd-swatches button.wcd-swatch:focus-visible {
-	outline: 2px solid #5f7728;
-	outline-offset: 2px;
+/* The label column has nothing to line up with once the chooser is a table of
+   its own, so the row stacks instead. */
+.woocommerce div.product form.variations_form table.variations,
+.woocommerce div.product form.variations_form table.variations tbody,
+.woocommerce div.product form.variations_form table.variations tr,
+.woocommerce div.product form.variations_form table.variations th,
+.woocommerce div.product form.variations_form table.variations td {
+	display: block;
+	width: auto;
+	border: 0;
+	padding: 0;
+	background: none;
 }
 
-.wcd-swatch__name {
-	font-size: 0.95em;
-	font-weight: 600;
-}
-
-.wcd-swatch__price {
-	font-size: 0.9em;
+.woocommerce div.product form.variations_form table.variations th.label {
+	margin: 14px 0 6px;
+	font-size: 0.78em;
 	font-weight: 700;
-	color: #46591d;
-}
-
-.wcd-swatch__price del {
-	display: none;
-}
-
-.wcd-swatch__price ins {
-	text-decoration: none;
-}
-
-/* WooCommerce rules out combinations as they are chosen; a button for one of
-   those should look spent rather than merely unselected. */
-.wcd-swatches button.wcd-swatch.is-unavailable {
-	opacity: 0.4;
-	cursor: not-allowed;
-	text-decoration: line-through;
-}
-
-@media ( max-width: 480px ) {
-	.wcd-swatches button.wcd-swatch {
-		flex: 1 1 calc( 50% - 8px );
-		min-width: 0;
-	}
+	text-transform: uppercase;
+	letter-spacing: 0.11em;
+	color: #6b7280;
+	text-align: left;
 }

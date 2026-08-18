@@ -602,8 +602,8 @@ class Variations {
 			return (string) $html;
 		}
 
-		$prices  = self::variation_prices( $product );
-		$buttons = '';
+		$prices = self::variation_prices( $product );
+		$rows   = '';
 
 		foreach ( $options as $slug ) {
 			$term = get_term_by( 'slug', $slug, $attribute );
@@ -612,23 +612,40 @@ class Variations {
 				continue;
 			}
 
-			$price = $prices[ $slug ] ?? null;
+			$price   = $prices[ $slug ] ?? null;
+			$percent = self::percent_for_slug( $slug );
 
-			$buttons .= sprintf(
-				'<button type="button" class="wcd-swatch" data-value="%1$s">
-					<span class="wcd-swatch__name">%2$s</span>%3$s
-				</button>',
+			$rows .= sprintf(
+				'<tr class="wcd-choice__row" data-value="%1$s" tabindex="0" role="radio" aria-checked="false">
+					<td class="wcd-choice__pick"><span class="wcd-choice__dot" aria-hidden="true"></span></td>
+					<td class="wcd-choice__month">%2$s</td>
+					<td class="wcd-choice__off">%3$s</td>
+					<td class="wcd-choice__price">%4$s</td>
+				</tr>',
 				esc_attr( $slug ),
 				esc_html( $term->name ),
-				$price !== null
-					? '<span class="wcd-swatch__price">' . wp_kses_post( wc_price( $price ) ) . '</span>'
-					: ''
+				$percent > 0
+					? esc_html(
+						sprintf(
+							/* translators: %s: percentage. */
+							__( '%s%% off', 'woo-custom-discount' ),
+							Admin_Rules::percent_label( $percent )
+						)
+					)
+					: '',
+				$price !== null ? wp_kses_post( wc_price( $price ) ) : ''
 			);
 		}
 
-		if ( $buttons === '' ) {
+		if ( $rows === '' ) {
 			return (string) $html;
 		}
+
+		$buttons = sprintf(
+			'<table class="wcd-choice" role="radiogroup" aria-label="%1$s"><tbody>%2$s</tbody></table>',
+			esc_attr__( 'Choose an expiry date', 'woo-custom-discount' ),
+			$rows
+		);
 
 		// The dropdown goes inside a wrapper of our own rather than being hidden
 		// where it stands. Hiding it in place meant competing with the theme's
@@ -640,6 +657,23 @@ class Variations {
 			$buttons,
 			$html
 		);
+	}
+
+	/**
+	 * The discount behind one option.
+	 *
+	 * The term slug carries the batch id, which is what makes this possible
+	 * without another lookup table — and what keeps the link intact when a batch
+	 * is renamed or its month moved.
+	 */
+	private static function percent_for_slug( string $slug ): float {
+		if ( ! preg_match( '/^wcd-b(\d+)$/', $slug, $m ) ) {
+			return 0.0;
+		}
+
+		$rule = Rules::get( (int) $m[1] );
+
+		return $rule ? (float) $rule['discount_percent'] : 0.0;
 	}
 
 	/**
