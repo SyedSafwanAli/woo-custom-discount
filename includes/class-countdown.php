@@ -145,11 +145,20 @@ class Countdown {
 
 	/**
 	 * Countdown, and optionally the expiry date, on the product page.
+	 *
+	 * Stands down when the page places the shortcode itself. On a Divi Theme
+	 * Builder product page this hook still fires from somewhere in the module
+	 * stack, so a hand-placed countdown was getting a second, unplaced copy
+	 * somewhere near the top of the page.
 	 */
 	public static function render_single(): void {
 		global $product;
 
 		if ( ! $product instanceof \WC_Product ) {
+			return;
+		}
+
+		if ( Plugin::page_has_shortcode( 'wcd_countdown' ) ) {
 			return;
 		}
 
@@ -402,6 +411,10 @@ class Countdown {
 		global $product;
 
 		if ( ! $product instanceof \WC_Product ) {
+			return;
+		}
+
+		if ( Plugin::page_has_shortcode( 'wcd_savings' ) ) {
 			return;
 		}
 

@@ -76,6 +76,55 @@ class Plugin {
 	}
 
 	/**
+	 * Whether the page being viewed places a given shortcode itself.
+	 *
+	 * Anything this plugin adds automatically has to stand down when it has been
+	 * placed by hand, or it appears twice. Two places to look: the post's own
+	 * content, where Divi keeps a page's layout, and the Theme Builder template
+	 * covering the request, which is a separate post entirely.
+	 *
+	 * @param string $tag Shortcode tag, without brackets.
+	 */
+	public static function page_has_shortcode( string $tag ): bool {
+		static $cache = array();
+
+		if ( isset( $cache[ $tag ] ) ) {
+			return $cache[ $tag ];
+		}
+
+		$found = false;
+		$post  = get_post();
+
+		if ( $post instanceof \WP_Post && has_shortcode( (string) $post->post_content, $tag ) ) {
+			$found = true;
+		}
+
+		if ( ! $found && function_exists( 'et_theme_builder_get_template_layouts' ) ) {
+			$layouts = et_theme_builder_get_template_layouts();
+
+			if ( is_array( $layouts ) ) {
+				foreach ( $layouts as $layout ) {
+					if ( ! is_array( $layout ) || empty( $layout['id'] ) ) {
+						continue;
+					}
+
+					$content = (string) get_post_field( 'post_content', (int) $layout['id'] );
+
+					if ( $content !== '' && has_shortcode( $content, $tag ) ) {
+						$found = true;
+
+						break;
+					}
+				}
+			}
+		}
+
+		$cache[ $tag ] = $found;
+
+		return $found;
+	}
+
+	/**
 	 * The engine runs only when it is switched on AND no conflicting discount
 	 * plugin is active. The second half is the guard that makes the live
 	 * switchover safe: even if someone reactivates the old plugin by mistake,
