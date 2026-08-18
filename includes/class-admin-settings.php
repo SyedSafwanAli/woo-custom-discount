@@ -82,6 +82,13 @@ class Admin_Settings {
 			__( 'Each campaign and batch also has its own countdown switch.', 'woo-custom-discount' )
 		);
 
+		self::toggle(
+			'ajax_add_to_cart',
+			__( 'No-reload Add to Cart', 'woo-custom-discount' ),
+			__( 'Add to Cart on a product page without reloading', 'woo-custom-discount' ),
+			__( 'WooCommerce\'s own AJAX setting covers the shop grid only, so a product page reloads — and a cart drawer cannot open on a page that is already going away. This closes that gap. It adds no cart of its own: whatever this theme already opens on the shop grid now opens here too.', 'woo-custom-discount' )
+		);
+
 		echo '</tbody></table>';
 
 		// --- Countdown appearance --------------------------------------------
@@ -275,6 +282,7 @@ class Admin_Settings {
 				'filters_enabled'    => ! empty( $_POST['filters_enabled'] ),
 				'countdown_enabled'  => ! empty( $_POST['countdown_enabled'] ),
 				'hide_expired'       => ! empty( $_POST['hide_expired'] ),
+				'ajax_add_to_cart'   => ! empty( $_POST['ajax_add_to_cart'] ),
 				'rounding'           => in_array( $rounding, array( 'down', 'near', 'up' ), true ) ? $rounding : 'down',
 				'countdown_in_loop'  => in_array( $in_loop, array( 'overlay', 'below' ), true ) ? $in_loop : 'overlay',
 				'show_savings'       => ! empty( $_POST['show_savings'] ),

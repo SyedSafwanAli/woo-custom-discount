@@ -235,6 +235,7 @@ class Admin {
 			'filters_enabled'   => __( 'Shop filters', 'woo-custom-discount' ),
 			'countdown_enabled' => __( 'Countdowns', 'woo-custom-discount' ),
 			'hide_expired'      => __( 'Hide expired products', 'woo-custom-discount' ),
+			'ajax_add_to_cart'  => __( 'No-reload Add to Cart', 'woo-custom-discount' ),
 		);
 
 		echo '<p class="description">';

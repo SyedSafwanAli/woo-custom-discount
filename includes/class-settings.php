@@ -46,6 +46,12 @@ class Settings {
 			'countdown_enabled' => false,
 			'hide_expired'      => false,
 
+			// Sends a product page's Add to Cart through WooCommerce's AJAX
+			// endpoint instead of reloading the page. Off by default: it changes
+			// what happens after every Add to Cart, which is not ours to decide
+			// unasked. Adds no cart UI of its own.
+			'ajax_add_to_cart'  => false,
+
 			// How a discounted price is rounded. 'down' always favours the customer.
 			'rounding'          => 'down',
 

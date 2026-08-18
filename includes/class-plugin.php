@@ -70,6 +70,10 @@ class Plugin {
 		if ( Variations::enabled() ) {
 			Variations::init();
 		}
+
+		if ( Settings::is_on( 'ajax_add_to_cart' ) ) {
+			Ajax_Cart::init();
+		}
 	}
 
 	/**
