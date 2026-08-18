@@ -330,7 +330,18 @@ class Admin_Rules {
 			self::field(
 				__( 'Products', 'woo-custom-discount' ),
 				self::product_select( 'products', $in_batch ),
-				__( 'Start typing a product name to find it. Put a product in only one batch — if you hold two expiry dates for it, use the earlier one.', 'woo-custom-discount' )
+				__( 'Start typing a product name to find it. A product can sit in several batches at once — some stock expiring sooner, some later.', 'woo-custom-discount' )
+			);
+
+			// Pointing at the better tool. This box is fine for one batch; it is
+			// the wrong shape for putting one product into three, which means
+			// opening three of these screens and finding the same product each
+			// time.
+			printf(
+				'<tr><th scope="row"></th><td><p class="description wcd-hint">%1$s <a href="%2$s">%3$s</a></p></td></tr>',
+				esc_html__( 'Working across several batches at once?', 'woo-custom-discount' ),
+				esc_url( Admin::url( 'products' ) ),
+				esc_html__( 'The Assign Products grid is quicker — every product on one screen, a column per batch.', 'woo-custom-discount' )
 			);
 
 			self::close_section();
@@ -473,6 +484,7 @@ class Admin_Rules {
 			echo '<li>' . esc_html__( 'One expiry month and one discount, shared by every product you put in it.', 'woo-custom-discount' ) . '</li>';
 			echo '<li>' . esc_html__( 'Once the month passes, the discount stops and the products are hidden from the shop.', 'woo-custom-discount' ) . '</li>';
 			echo '<li>' . esc_html__( 'A product in a batch is skipped by every campaign, including a store-wide one.', 'woo-custom-discount' ) . '</li>';
+			echo '<li>' . esc_html__( 'A product can be in several batches. For now it is priced from the one expiring soonest.', 'woo-custom-discount' ) . '</li>';
 			echo '<li>' . esc_html__( 'Nothing is deleted. Pausing the batch, or clearing the hiding setting, brings the products straight back.', 'woo-custom-discount' ) . '</li>';
 			echo '</ul>';
 		} else {

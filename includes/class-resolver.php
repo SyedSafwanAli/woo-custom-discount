@@ -164,9 +164,10 @@ class Resolver {
 	/**
 	 * The batch a product belongs to and which has not expired yet.
 	 *
-	 * Only one batch per product is expected. If a product somehow sits in two,
-	 * the one expiring soonest wins — the most urgent stock to move, and the
-	 * safer figure to show a customer.
+	 * A product may sit in several — a shop can hold the same item with two or
+	 * three different dates on it. Until the customer is given the choice
+	 * themselves, the one expiring soonest wins: it is the stock most in need of
+	 * moving, and the safer date to put in front of a shopper.
 	 *
 	 * @return array<string,mixed>|null
 	 */

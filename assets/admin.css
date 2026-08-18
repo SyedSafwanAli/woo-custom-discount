@@ -168,6 +168,13 @@
 	border-color: #cbd9a2;
 }
 
+.wcd-admin .wcd-hint {
+	padding: 0.7em 0.9em;
+	background: #f6f8ef;
+	border-left: 3px solid #8ba93d;
+	border-radius: 2px;
+}
+
 .wcd-admin label.wcd-switch {
 	display: inline-flex;
 	align-items: center;
