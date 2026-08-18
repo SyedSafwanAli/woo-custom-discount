@@ -132,7 +132,11 @@
 }
 
 .woocommerce ul.products li.product .wcd-countdown--overlay {
-	--wcd-box: #d92a3f;
+	/* The shop's badge green is #8ba93d, which is too light to carry white text
+	   — about 2.7:1 where 4.5 is the floor. This is the same hue taken darker,
+	   which reads as the brand colour and is legible at 5.1:1.
+	   Override this one variable from the theme to change it. */
+	--wcd-box: #5f7728;
 
 	display: none;
 	position: absolute;
@@ -192,12 +196,14 @@
 
 .wcd-countdown--overlay .wcd-countdown__value {
 	display: block;
-	min-width: 30px;
-	padding: 4px 5px;
-	border-radius: 5px;
+	/* Wide enough that the box does not change size between a one-digit and a
+	   two-digit figure, which would make the row twitch every second. */
+	min-width: 44px;
+	padding: 5px 6px;
+	border-radius: 6px;
 	background: var( --wcd-box );
 	color: #fff;
-	font-size: 15px;
+	font-size: 16px;
 	font-weight: 700;
 	line-height: 1.15;
 	font-variant-numeric: tabular-nums;
@@ -212,13 +218,11 @@
 	color: #6b7280;
 }
 
-/* Expiry runs amber, a sale ending runs red — the boxes carry the difference. */
-.wcd-countdown--overlay.wcd-countdown--expiry {
-	--wcd-box: #c2410c;
-}
-
+/* Both kinds run in the shop's own green. If the two ever need telling apart at
+   a glance, give the sale one its own colour here. */
+.wcd-countdown--overlay.wcd-countdown--expiry,
 .wcd-countdown--overlay.wcd-countdown--sale {
-	--wcd-box: #d92a3f;
+	--wcd-box: #5f7728;
 }
 
 /* Divi fades the image on hover; the countdown is not part of that picture and
