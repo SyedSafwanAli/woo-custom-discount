@@ -66,13 +66,31 @@ class Price_Engine {
 	 * So writes are wrapped in this flag, and the save hook stands down while it
 	 * is set.
 	 */
-	private static bool $busy = false;
+	private static int $busy = 0;
 
 	/**
 	 * Whether a write is in progress, so hooks can stand down.
 	 */
 	public static function is_busy(): bool {
-		return self::$busy;
+		return self::$busy > 0;
+	}
+
+	/**
+	 * Marks the start of a run of writes.
+	 *
+	 * A depth counter rather than a flag, because these nest: converting a
+	 * product to variable saves the product, which saves each variation, and the
+	 * inner save must not clear the guard the outer one raised.
+	 */
+	public static function begin_write(): void {
+		++self::$busy;
+	}
+
+	/**
+	 * Marks the end of one.
+	 */
+	public static function end_write(): void {
+		self::$busy = max( 0, self::$busy - 1 );
 	}
 
 	/**
@@ -225,6 +243,26 @@ class Price_Engine {
 			return 'skipped';
 		}
 
+		// A product held in several batches has several prices, which a simple
+		// product cannot carry. Variations owns those, and this method leaves
+		// them alone rather than trying to write one price over the top.
+		if ( Variations::should_be_variable( $product_id ) ) {
+			self::sync_expiry_meta( $product_id );
+			self::record_percent( $product_id );
+
+			Variations::sync_product( $product_id );
+
+			return 'discount';
+		}
+
+		if ( Variations::owns( $product_id ) ) {
+			// Down to one batch or none; Variations puts it back to simple and
+			// calls this method again to price it the ordinary way.
+			Variations::revert( $product_id );
+
+			return 'cleared';
+		}
+
 		$owned = get_post_meta( $product_id, self::META_OWNED, true ) === '1';
 
 		if ( ! in_array( $product->get_type(), self::SUPPORTED_TYPES, true ) ) {
@@ -316,6 +354,30 @@ class Price_Engine {
 		Install::flush_caches();
 
 		return $stats;
+	}
+
+	/**
+	 * Stores the discount the filters read, for a product priced by variations.
+	 *
+	 * The best of its batches, because that is the figure a shopper filtering
+	 * for "60% off" is looking for — the product does have it, on one of its
+	 * dates.
+	 */
+	private static function record_percent( int $product_id ): void {
+		$best = 0.0;
+
+		foreach ( Variations::batches_for( $product_id ) as $batch ) {
+			$best = max( $best, (float) $batch['discount_percent'] );
+		}
+
+		if ( $best > 0 ) {
+			update_post_meta( $product_id, self::META_PERCENT, (string) round( $best, 2 ) );
+			update_post_meta( $product_id, self::META_OWNED, '1' );
+
+			return;
+		}
+
+		delete_post_meta( $product_id, self::META_PERCENT );
 	}
 
 	/**
@@ -452,12 +514,12 @@ class Price_Engine {
 	 * @param \WC_Product $product Product to save.
 	 */
 	private static function save( $product ): void {
-		self::$busy = true;
+		self::begin_write();
 
 		try {
 			$product->save();
 		} finally {
-			self::$busy = false;
+			self::end_write();
 		}
 	}
 

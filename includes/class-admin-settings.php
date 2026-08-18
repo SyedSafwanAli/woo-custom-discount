@@ -62,6 +62,13 @@ class Admin_Settings {
 		);
 
 		self::toggle(
+			'batch_variations',
+			__( 'Let shoppers choose the expiry', 'woo-custom-discount' ),
+			__( 'On products held in two or more batches, show the dates as buttons', 'woo-custom-discount' ),
+			__( 'Those products become variable products, with one variation per batch, so WooCommerce handles the choice, the price, the order line and the stock. Products in one batch are untouched. Switching this off converts them all back.', 'woo-custom-discount' )
+		);
+
+		self::toggle(
 			'filters_enabled',
 			__( 'Shop filters', 'woo-custom-discount' ),
 			__( 'Let customers filter the shop', 'woo-custom-discount' ),
@@ -253,8 +260,10 @@ class Admin_Settings {
 		check_admin_referer( 'wcd_save_settings' );
 		self::guard();
 
-		$was_on = Settings::is_on( 'engine_enabled' );
-		$now_on = ! empty( $_POST['engine_enabled'] );
+		$was_on      = Settings::is_on( 'engine_enabled' );
+		$now_on      = ! empty( $_POST['engine_enabled'] );
+		$vary_before = Settings::is_on( 'batch_variations' );
+		$vary_after  = ! empty( $_POST['batch_variations'] );
 
 		$rounding = isset( $_POST['rounding'] ) ? sanitize_key( wp_unslash( (string) $_POST['rounding'] ) ) : 'down';
 		$in_loop  = isset( $_POST['countdown_in_loop'] ) ? sanitize_key( wp_unslash( (string) $_POST['countdown_in_loop'] ) ) : 'overlay';
@@ -262,6 +271,7 @@ class Admin_Settings {
 		Settings::update(
 			array(
 				'engine_enabled'     => $now_on,
+				'batch_variations'   => $vary_after,
 				'filters_enabled'    => ! empty( $_POST['filters_enabled'] ),
 				'countdown_enabled'  => ! empty( $_POST['countdown_enabled'] ),
 				'hide_expired'       => ! empty( $_POST['hide_expired'] ),
@@ -276,6 +286,19 @@ class Admin_Settings {
 		Resolver::flush();
 
 		$message = __( 'Settings saved.', 'woo-custom-discount' );
+
+		// Switching the choice off has to undo it, not merely stop offering it —
+		// otherwise the catalogue is left full of variable products nobody asked
+		// for and nothing is maintaining.
+		if ( $vary_before && ! $vary_after ) {
+			$reverted = Variations::revert_all();
+
+			$message = sprintf(
+				/* translators: %d: number of products. */
+				_n( '%d product converted back to a single price.', '%d products converted back to a single price.', $reverted, 'woo-custom-discount' ),
+				$reverted
+			);
+		}
 
 		if ( $now_on && Plugin::engine_can_run() ) {
 			$stats = Price_Engine::apply_all();

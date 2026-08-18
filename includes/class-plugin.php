@@ -66,6 +66,10 @@ class Plugin {
 		if ( Settings::is_on( 'countdown_enabled' ) ) {
 			Countdown::init();
 		}
+
+		if ( Variations::enabled() ) {
+			Variations::init();
+		}
 	}
 
 	/**

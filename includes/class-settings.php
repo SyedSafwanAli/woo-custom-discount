@@ -37,6 +37,11 @@ class Settings {
 		return array(
 			// Master switches. All off on a fresh install.
 			'engine_enabled'    => false,
+
+			// Lets a shopper choose which expiry they are buying, on products
+			// held in two or more batches. Off by default: it converts those
+			// products to variable, which is a real change to the catalogue.
+			'batch_variations'  => false,
 			'filters_enabled'   => false,
 			'countdown_enabled' => false,
 			'hide_expired'      => false,
