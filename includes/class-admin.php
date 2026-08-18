@@ -29,6 +29,7 @@ class Admin {
 		add_filter( 'plugin_action_links_' . WCD_BASENAME, array( __CLASS__, 'action_links' ) );
 
 		Admin_Rules::init();
+		Admin_Products::init();
 		Admin_Import::init();
 		Admin_Filters::init();
 		Admin_Settings::init();
@@ -45,6 +46,7 @@ class Admin {
 			''          => __( 'Status', 'woo-custom-discount' ),
 			'campaigns' => __( 'Campaigns', 'woo-custom-discount' ),
 			'batches'   => __( 'Expiry Batches', 'woo-custom-discount' ),
+			'products'  => __( 'Assign Products', 'woo-custom-discount' ),
 			'filters'   => __( 'Filters', 'woo-custom-discount' ),
 			'import'    => __( 'Import & Preview', 'woo-custom-discount' ),
 			'settings'  => __( 'Settings', 'woo-custom-discount' ),
@@ -154,6 +156,10 @@ class Admin {
 
 			case 'batches':
 				Admin_Rules::render( Rules::TYPE_BATCH );
+				break;
+
+			case 'products':
+				Admin_Products::render();
 				break;
 
 			case 'filters':

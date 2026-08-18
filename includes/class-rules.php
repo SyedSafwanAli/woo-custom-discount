@@ -263,6 +263,112 @@ class Rules {
 	}
 
 	/**
+	 * Which batches each of the given products belongs to.
+	 *
+	 * One query for the whole page, rather than one per row.
+	 *
+	 * @param int[] $product_ids Products to look up.
+	 * @return array<int,int[]> Product ID => batch rule IDs.
+	 */
+	public static function batch_map_for_products( array $product_ids ): array {
+		global $wpdb;
+
+		$product_ids = array_values( array_unique( array_map( 'intval', $product_ids ) ) );
+
+		if ( $product_ids === array() ) {
+			return array();
+		}
+
+		$rules        = Install::table( Install::TABLE_RULES );
+		$items        = Install::table( Install::TABLE_ITEMS );
+		$placeholders = implode( ',', array_fill( 0, count( $product_ids ), '%d' ) );
+
+		$sql = $wpdb->prepare(
+			"SELECT i.item_id, i.rule_id
+			   FROM {$items} i
+			   INNER JOIN {$rules} r ON r.id = i.rule_id
+			  WHERE r.type = %s
+			    AND i.item_type = %s
+			    AND i.item_id IN ({$placeholders})",
+			array_merge( array( self::TYPE_BATCH, self::ITEM_PRODUCT ), $product_ids )
+		);
+
+		$rows = $wpdb->get_results( $sql, ARRAY_A );
+		$map  = array();
+
+		foreach ( (array) $rows as $row ) {
+			$map[ (int) $row['item_id'] ][] = (int) $row['rule_id'];
+		}
+
+		return $map;
+	}
+
+	/**
+	 * Sets which batches one product belongs to.
+	 *
+	 * `$managed` is the crucial argument: only those batches are touched. The
+	 * assignment grid can hide expired batches to keep its columns readable, and
+	 * without this a product's membership of a hidden batch would be wiped
+	 * simply because its checkbox was not on the page.
+	 *
+	 * @param int   $product_id Product to change.
+	 * @param int[] $checked    Batch IDs it should belong to.
+	 * @param int[] $managed    Batch IDs this call is allowed to change.
+	 * @return bool Whether anything changed.
+	 */
+	public static function set_product_batches( int $product_id, array $checked, array $managed ): bool {
+		global $wpdb;
+
+		$managed = array_map( 'intval', $managed );
+		$checked = array_intersect( array_map( 'intval', $checked ), $managed );
+
+		if ( $managed === array() ) {
+			return false;
+		}
+
+		$table   = Install::table( Install::TABLE_ITEMS );
+		$current = array_intersect( self::batches_for_product( $product_id ), $managed );
+
+		$add    = array_diff( $checked, $current );
+		$remove = array_diff( $current, $checked );
+
+		foreach ( $remove as $rule_id ) {
+			$wpdb->delete(
+				$table,
+				array(
+					'rule_id'   => $rule_id,
+					'item_type' => self::ITEM_PRODUCT,
+					'item_id'   => $product_id,
+				)
+			);
+		}
+
+		foreach ( $add as $rule_id ) {
+			$wpdb->insert(
+				$table,
+				array(
+					'rule_id'   => $rule_id,
+					'item_type' => self::ITEM_PRODUCT,
+					'item_id'   => $product_id,
+				)
+			);
+		}
+
+		return $add !== array() || $remove !== array();
+	}
+
+	/**
+	 * The batches one product belongs to.
+	 *
+	 * @return int[]
+	 */
+	public static function batches_for_product( int $product_id ): array {
+		$map = self::batch_map_for_products( array( $product_id ) );
+
+		return $map[ $product_id ] ?? array();
+	}
+
+	/**
 	 * How many rules exist, split by type. Used by the admin screens.
 	 *
 	 * @return array{campaign:int,batch:int}

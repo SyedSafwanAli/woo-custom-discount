@@ -469,6 +469,136 @@
 	max-width: 100%;
 }
 
+/* --- Assignment grid ----------------------------------------------------- */
+
+.wcd-admin .wcd-grid-filters {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5em;
+	margin: 1em 0 1.25em;
+}
+
+.wcd-admin .wcd-grid-search {
+	min-width: 18em;
+}
+
+/* Many batches make many columns; the table scrolls rather than the page. */
+.wcd-admin .wcd-grid-wrap {
+	max-width: 100%;
+	overflow-x: auto;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+}
+
+.wcd-admin table.wcd-grid {
+	border: 0;
+	margin: 0;
+}
+
+.wcd-admin table.wcd-grid th {
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.07em;
+	vertical-align: bottom;
+}
+
+.wcd-admin .wcd-grid-name {
+	min-width: 22em;
+}
+
+.wcd-admin .wcd-grid-name a {
+	font-weight: 500;
+	text-decoration: none;
+}
+
+.wcd-admin .wcd-grid-sku {
+	display: block;
+	font-size: 11px;
+	color: #8c8f94;
+	font-variant-numeric: tabular-nums;
+}
+
+/* The batch columns: month over percentage, so the header is scannable. */
+.wcd-admin th.wcd-grid-batch {
+	width: 5.5em;
+	text-align: center;
+	line-height: 1.3;
+	white-space: nowrap;
+}
+
+.wcd-admin .wcd-grid-batch__month {
+	display: block;
+	font-size: 12px;
+	font-weight: 700;
+	text-transform: none;
+	letter-spacing: 0;
+	color: #1e2419;
+}
+
+.wcd-admin .wcd-grid-batch__pct {
+	display: block;
+	font-size: 11px;
+	font-weight: 600;
+	color: #5f7728;
+	font-variant-numeric: tabular-nums;
+}
+
+.wcd-admin .wcd-grid-batch__note {
+	display: block;
+	font-size: 10px;
+	font-weight: 400;
+	text-transform: lowercase;
+	letter-spacing: 0;
+	color: #b32d2e;
+}
+
+.wcd-admin th.wcd-grid-batch.is-expired .wcd-grid-batch__month,
+.wcd-admin th.wcd-grid-batch.is-expired .wcd-grid-batch__pct {
+	opacity: 0.55;
+}
+
+.wcd-admin td.wcd-grid-cell {
+	text-align: center;
+	vertical-align: middle;
+}
+
+/* A bigger hit area than the checkbox itself — this grid gets a lot of clicks. */
+.wcd-admin td.wcd-grid-cell label {
+	display: block;
+	padding: 0.4em 0;
+	cursor: pointer;
+}
+
+.wcd-admin td.wcd-grid-cell label:hover {
+	background: #f6f8ef;
+}
+
+.wcd-admin td.wcd-grid-cell input {
+	margin: 0;
+}
+
+.wcd-admin .wcd-grid-pct {
+	display: block;
+	font-size: 11px;
+	font-weight: 600;
+	color: #5f7728;
+}
+
+.wcd-admin .wcd-grid-campaign {
+	font-size: 12.5px;
+	color: #50575e;
+	max-width: 16em;
+}
+
+.wcd-admin .wcd-grid-dash {
+	color: #c3c4c7;
+}
+
+.wcd-admin .wcd-grid-actions {
+	margin: 1.25em 0;
+}
+
 /* --- Product panel ------------------------------------------------------- */
 
 .wcd-product-box .wcd-product-sum {
