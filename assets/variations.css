@@ -254,6 +254,28 @@
 	display: table-row;
 }
 
+/* The chooser's own frame and its row separators, stated where no theme rule
+ * reaches. Two of them otherwise do:
+ *
+ *   form.cart table       sets a border-width on any table inside the form, and
+ *   entry-content tr td   puts a line above every cell — which would rule
+ *                         between the columns as well as between the rows.
+ *
+ * Both are more specific than the plain declarations at the top of this file. */
+.woocommerce div.product form.cart .variations table.wcd-choice {
+	border: 1px solid #d8dcd0;
+	border-collapse: separate;
+	border-spacing: 0;
+}
+
+.woocommerce div.product form.cart .variations table.wcd-choice > tbody > tr > td {
+	border: 0;
+}
+
+.woocommerce div.product form.cart .variations table.wcd-choice > tbody > tr + tr > td {
+	border-top: 1px solid #eceee7;
+}
+
 .woocommerce div.product form.variations_form > table.variations > tbody > tr > th.label {
 	margin: 14px 0 6px;
 	font-size: 0.78em;
