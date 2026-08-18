@@ -69,6 +69,70 @@ class Variations {
 
 		// The dropdown WooCommerce renders becomes a row of buttons.
 		add_filter( 'woocommerce_dropdown_variation_attribute_options_html', array( __CLASS__, 'add_buttons' ), 10, 2 );
+
+		// And the price gets the figure it is discounted from.
+		add_filter( 'woocommerce_get_price_html', array( __CLASS__, 'price_html' ), 10, 2 );
+	}
+
+	/**
+	 * Puts the original price back beside a variable product's range.
+	 *
+	 * WooCommerce strikes a price through when it can see what the product used
+	 * to cost. A variable product keeps no price of its own, so on the shop grid
+	 * these read as though 1,798 were simply what the item costs — the one thing
+	 * a shop running a 60% sale most wants shown is the 4,495 it is 60% off.
+	 *
+	 * The figure comes from the price stashed at conversion, which is the same
+	 * one put back if the product ever converts out. So there is no second
+	 * version of the truth here: it is the product's own regular price, kept
+	 * somewhere WooCommerce does not clear.
+	 *
+	 * @param string      $html    Price HTML WooCommerce built.
+	 * @param \WC_Product $product Product it belongs to.
+	 */
+	public static function price_html( $html, $product ): string {
+		if ( ! $product instanceof \WC_Product || ! $product->is_type( 'variable' ) ) {
+			return (string) $html;
+		}
+
+		$product_id = $product->get_id();
+
+		if ( ! self::owns( $product_id ) ) {
+			return (string) $html;
+		}
+
+		$regular = (float) get_post_meta( $product_id, self::META_BASE_REGULAR, true );
+
+		if ( $regular <= 0 ) {
+			return (string) $html;
+		}
+
+		$min = (float) $product->get_variation_price( 'min', true );
+		$max = (float) $product->get_variation_price( 'max', true );
+
+		if ( $min <= 0 || $min >= $regular ) {
+			return (string) $html;
+		}
+
+		// Cheapest first, which is the order WooCommerce shows a range in and the
+		// order a shopper reads it: the best price this product can be had for,
+		// then what it climbs to.
+		$now = $min === $max
+			? wc_price( $min )
+			: wc_format_price_range( $min, $max );
+
+		// Same shape WooCommerce uses for a sale price, so the theme's own styling
+		// for struck-through and current prices applies without a line of CSS,
+		// and a screen reader is told which is which rather than reading two
+		// numbers in a row.
+		return '<del aria-hidden="true">' . wc_price( $regular ) . '</del> '
+			. '<span class="screen-reader-text">'
+			. esc_html__( 'Original price was:', 'woo-custom-discount' ) . ' ' . wp_strip_all_tags( wc_price( $regular ) )
+			. '</span> '
+			. '<ins aria-hidden="true">' . $now . '</ins>'
+			. '<span class="screen-reader-text">'
+			. esc_html__( 'Current price is:', 'woo-custom-discount' ) . ' ' . wp_strip_all_tags( $now )
+			. '</span>';
 	}
 
 	/**
