@@ -272,6 +272,95 @@
 	font-weight: 700;
 }
 
+/* ========================================================================
+   The expiry list on a product page
+   ===================================================================== */
+
+.wcd-expiry {
+	margin: 1em 0 1.25em;
+	padding: 0.9em 1.1em;
+	border: 1px solid rgba( 0, 0, 0, 0.1 );
+	border-radius: 6px;
+	font-family: inherit;
+}
+
+.wcd-expiry__title {
+	margin: 0 0 0.5em;
+	font-size: 0.72em;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.11em;
+	opacity: 0.6;
+}
+
+.wcd-expiry ul.wcd-expiry__list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	list-style-type: none;
+}
+
+.wcd-expiry ul.wcd-expiry__list > li {
+	display: flex;
+	align-items: baseline;
+	flex-wrap: wrap;
+	gap: 0.5em;
+	margin: 0;
+	padding: 0.4em 0;
+	list-style: none;
+	background: none;
+	border-bottom: 1px solid rgba( 0, 0, 0, 0.06 );
+}
+
+.wcd-expiry ul.wcd-expiry__list > li:last-child {
+	border-bottom: 0;
+}
+
+.wcd-expiry ul.wcd-expiry__list > li::before,
+.wcd-expiry ul.wcd-expiry__list > li::marker {
+	content: none;
+	display: none;
+}
+
+.wcd-expiry__month {
+	flex: 1 1 auto;
+	font-weight: 600;
+}
+
+.wcd-expiry__off {
+	flex: 0 0 auto;
+	padding: 1px 8px;
+	border-radius: 999px;
+	background: #eef3e0;
+	color: #3c4d18;
+	font-size: 0.78em;
+	font-weight: 700;
+}
+
+.wcd-expiry__price {
+	flex: 0 0 auto;
+	min-width: 5.5em;
+	text-align: right;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+/* Four batches can mean four different figures, and only one of them is the
+   price today. Saying which stops the list reading as a contradiction. */
+.wcd-expiry__flag {
+	flex: 0 0 100%;
+	font-size: 0.72em;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.07em;
+	color: #5f7728;
+}
+
+.wcd-expiry__item.is-active .wcd-expiry__month,
+.wcd-expiry__item.is-active .wcd-expiry__price {
+	color: #46591d;
+}
+
 .wcd-expiry-note {
 	margin: 0.5em 0 1em;
 	font-size: 0.9em;

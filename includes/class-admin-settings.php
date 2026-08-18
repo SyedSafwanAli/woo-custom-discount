@@ -113,6 +113,19 @@ class Admin_Settings {
 
 		echo '</tbody></table>';
 
+		// Without this note nobody would find them, and on a Theme Builder
+		// product page they are the only way anything appears at all.
+		echo '<div class="wcd-explainer">';
+		echo '<p><strong>' . esc_html__( 'Building the product page in Divi?', 'woo-custom-discount' ) . '</strong></p>';
+		echo '<p>' . esc_html__( 'A Theme Builder product page is assembled from Divi\'s own Woo modules, so WooCommerce\'s usual hooks never run and nothing here can place itself. Drop these into a Code module wherever you want them:', 'woo-custom-discount' ) . '</p>';
+		echo '<ul>';
+		printf( '<li><code>[wcd_countdown]</code> — %s</li>', esc_html__( 'the countdown for this product', 'woo-custom-discount' ) );
+		printf( '<li><code>[wcd_expiry]</code> — %s</li>', esc_html__( 'the expiry dates this product is stocked in, and the discount on each', 'woo-custom-discount' ) );
+		printf( '<li><code>[wcd_savings]</code> — %s</li>', esc_html__( 'how much the shopper saves', 'woo-custom-discount' ) );
+		echo '</ul>';
+		echo '<p class="description">' . esc_html__( 'On a theme that uses WooCommerce\'s standard product template these appear on their own, and the shortcodes are not needed.', 'woo-custom-discount' ) . '</p>';
+		echo '</div>';
+
 		echo '<h2>' . esc_html__( 'More switches', 'woo-custom-discount' ) . '</h2>';
 		echo '<table class="form-table" role="presentation"><tbody>';
 

@@ -41,6 +41,14 @@ class Countdown {
 	public static function init(): void {
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue' ) );
 
+		// A product page built in Divi's Theme Builder is assembled from Divi's
+		// own Woo modules, so woocommerce_single_product_summary never fires and
+		// nothing hooked to it appears. These give a way to place the same
+		// things by hand, in a Code module.
+		add_shortcode( 'wcd_countdown', array( __CLASS__, 'shortcode_countdown' ) );
+		add_shortcode( 'wcd_expiry', array( __CLASS__, 'shortcode_expiry' ) );
+		add_shortcode( 'wcd_savings', array( __CLASS__, 'shortcode_savings' ) );
+
 		if ( self::loop_is_overlay() ) {
 			// A wrapper of our own around the thumbnail, opened before it and
 			// closed after. Anchoring to the card's own link does not work:
@@ -245,6 +253,149 @@ class Countdown {
 	}
 
 	/**
+	 * The product being displayed, whether or not the loop set the global.
+	 *
+	 * Divi's Woo modules do set it, but a Code module dropped anywhere on a
+	 * Theme Builder template may run before they do.
+	 */
+	private static function current_product(): ?\WC_Product {
+		global $product;
+
+		if ( $product instanceof \WC_Product ) {
+			return $product;
+		}
+
+		$id = get_queried_object_id();
+
+		if ( ! $id ) {
+			return null;
+		}
+
+		$found = wc_get_product( $id );
+
+		return $found instanceof \WC_Product ? $found : null;
+	}
+
+	/**
+	 * [wcd_countdown] — the countdown for this product.
+	 */
+	public static function shortcode_countdown(): string {
+		$product = self::current_product();
+
+		return $product ? self::html( $product->get_id(), 'single' ) : '';
+	}
+
+	/**
+	 * [wcd_savings] — the amount saved, whatever the setting says elsewhere.
+	 */
+	public static function shortcode_savings(): string {
+		$product = self::current_product();
+
+		if ( ! $product ) {
+			return '';
+		}
+
+		$regular = (float) $product->get_regular_price();
+		$now     = (float) $product->get_price();
+
+		if ( $regular <= 0 || $now <= 0 || $now >= $regular ) {
+			return '';
+		}
+
+		return sprintf(
+			'<p class="wcd-savings">%s</p>',
+			esc_html(
+				sprintf(
+					/* translators: %s: amount saved. */
+					__( 'You save %s', 'woo-custom-discount' ),
+					self::money( $regular - $now )
+				)
+			)
+		);
+	}
+
+	/**
+	 * [wcd_expiry] — the expiry stock this product is held in.
+	 *
+	 * A product can sit in several batches, and only one of them is setting the
+	 * price today. Listing them all and marking which is which is honest; a bare
+	 * list would leave a shopper wondering why four discounts produce one price.
+	 */
+	public static function shortcode_expiry(): string {
+		$product = self::current_product();
+
+		if ( ! $product ) {
+			return '';
+		}
+
+		$product_id = $product->get_id();
+		$batches    = array();
+
+		foreach ( Rules::query( array( 'type' => Rules::TYPE_BATCH, 'enabled' => true ) ) as $batch ) {
+			if ( in_array( $product_id, $batch['products'], true ) && ! Rules::is_batch_expired( $batch ) ) {
+				$batches[] = $batch;
+			}
+		}
+
+		if ( $batches === array() ) {
+			return '';
+		}
+
+		usort(
+			$batches,
+			static fn( array $a, array $b ): int => strcmp( (string) $a['expiry_ym'], (string) $b['expiry_ym'] )
+		);
+
+		$active  = Resolver::active_batch_for( $product_id );
+		$regular = (float) $product->get_regular_price();
+
+		ob_start();
+		?>
+		<div class="wcd-expiry">
+			<p class="wcd-expiry__title">
+				<?php echo esc_html( _n( 'Expiry', 'Expiry dates held', count( $batches ), 'woo-custom-discount' ) ); ?>
+			</p>
+			<ul class="wcd-expiry__list">
+				<?php foreach ( $batches as $batch ) : ?>
+					<?php $is_active = $active !== null && (int) $active['id'] === (int) $batch['id']; ?>
+					<li class="wcd-expiry__item<?php echo $is_active ? ' is-active' : ''; ?>">
+						<span class="wcd-expiry__month">
+							<?php echo esc_html( Importer::format_expiry( (string) $batch['expiry_ym'] ) ); ?>
+						</span>
+						<span class="wcd-expiry__off">
+							<?php
+							printf(
+								/* translators: %s: percentage. */
+								esc_html__( '%s%% off', 'woo-custom-discount' ),
+								esc_html( Admin_Rules::percent_label( (float) $batch['discount_percent'] ) )
+							);
+							?>
+						</span>
+						<span class="wcd-expiry__price">
+							<?php echo esc_html( self::money( Price_Engine::discounted_price( $regular, (float) $batch['discount_percent'] ) ) ); ?>
+						</span>
+						<?php if ( $is_active ) : ?>
+							<span class="wcd-expiry__flag"><?php esc_html_e( 'current price', 'woo-custom-discount' ); ?></span>
+						<?php endif; ?>
+					</li>
+				<?php endforeach; ?>
+			</ul>
+		</div>
+		<?php
+
+		return (string) ob_get_clean();
+	}
+
+	/**
+	 * A formatted amount, symbol and all.
+	 */
+	private static function money( float $amount ): string {
+		$symbol = html_entity_decode( get_woocommerce_currency_symbol(), ENT_QUOTES, 'UTF-8' );
+
+		return trim( $symbol . ' ' . number_format( $amount ) );
+	}
+
+	/**
 	 * How much a shopper saves on this product, as a chip under the price.
 	 */
 	public static function render_savings(): void {
@@ -267,7 +418,7 @@ class Countdown {
 				sprintf(
 					/* translators: %s: amount saved, already formatted. */
 					__( 'You save %s', 'woo-custom-discount' ),
-					trim( html_entity_decode( get_woocommerce_currency_symbol(), ENT_QUOTES, 'UTF-8' ) . ' ' . number_format( $regular - $now ) )
+					self::money( $regular - $now )
 				)
 			)
 		);
