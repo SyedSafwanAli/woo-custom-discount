@@ -57,9 +57,15 @@
 	outline: none;
 }
 
+/* The ring goes on the row. Put on the cells it drew a box around each one, and
+   the row came apart into four outlined boxes. */
+.wcd-swatches tr.wcd-choice__row:focus-visible {
+	outline: 2px solid #5f7728;
+	outline-offset: -2px;
+}
+
 .wcd-swatches tr.wcd-choice__row:focus-visible td {
 	background: #f0f4e4;
-	box-shadow: inset 0 0 0 2px #5f7728;
 }
 
 /* --- The chosen row ------------------------------------------------------ */
