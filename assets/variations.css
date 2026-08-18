@@ -81,6 +81,9 @@
 	padding-right: 0;
 }
 
+/* The filled centre is an inset shadow rather than a pseudo-element, so the dot
+   needs no ::after of its own — which lets the shield at the foot of this file
+   clear pseudo-elements off our spans without taking the mark with them. */
 .wcd-swatches .wcd-choice__dot {
 	display: block;
 	width: 17px;
@@ -88,7 +91,6 @@
 	border: 2px solid #c3c9b8;
 	border-radius: 50%;
 	background: #fff;
-	position: relative;
 }
 
 .wcd-swatches tr.wcd-choice__row:hover .wcd-choice__dot {
@@ -99,12 +101,8 @@
 	border-color: #5f7728;
 }
 
-.wcd-swatches tr.wcd-choice__row.is-active .wcd-choice__dot::after {
-	content: "";
-	position: absolute;
-	inset: 3px;
-	border-radius: 50%;
-	background: #5f7728;
+.wcd-swatches tr.wcd-choice__row.is-active .wcd-choice__dot {
+	box-shadow: inset 0 0 0 4px #5f7728;
 }
 
 /* --- The columns --------------------------------------------------------- */
@@ -212,6 +210,42 @@
 	border: 0;
 	padding: 0;
 	background: none;
+}
+
+/* --- Shielding the chooser from the theme -------------------------------- */
+
+/* Divi dresses the variation cell by element name, not by class, so three of its
+ * rules reach past the cell and into our table:
+ *
+ *   td.value span:after  draws the dropdown's arrow on every span inside the
+ *                        cell — which meant one on the radio dot and one on each
+ *                        piece of each price, absolutely placed at the right
+ *                        edge, where they piled up as a stroke through the
+ *                        figures;
+ *   .variations td       sets padding and max-width with !important;
+ *   stacked labels       turn every td in the cell into a block.
+ *
+ * These three undo exactly those, for our table only. The !important is answering
+ * an !important; the long selectors are answering specificity. Neither is here by
+ * preference. */
+.woocommerce div.product form.cart .variations .wcd-swatches span:after,
+.woocommerce div.product form.cart .variations .wcd-swatches span:before {
+	content: none;
+	border: 0;
+}
+
+.woocommerce div.product form.cart .variations table.wcd-choice > tbody > tr > td {
+	display: table-cell;
+	padding: 11px 12px !important;
+	max-width: none !important;
+}
+
+.woocommerce div.product form.cart .variations table.wcd-choice > tbody > tr > td.wcd-choice__pick {
+	padding-right: 0 !important;
+}
+
+.woocommerce div.product form.cart .variations table.wcd-choice > tbody > tr {
+	display: table-row;
 }
 
 .woocommerce div.product form.variations_form > table.variations > tbody > tr > th.label {
