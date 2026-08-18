@@ -30,6 +30,15 @@ class Admin_Products {
 	private const PER_PAGE = 25;
 
 	/**
+	 * How many batch columns fit before the table outgrows the screen.
+	 *
+	 * Measured rather than guessed: the name, two prices and the campaign take
+	 * roughly 500px, and each batch column 78px. Eight columns lands near
+	 * 1,120px, which sits inside a normal admin content area.
+	 */
+	private const COMFORTABLE_COLUMNS = 8;
+
+	/**
 	 * Hooks the save handler.
 	 */
 	public static function init(): void {
@@ -160,6 +169,37 @@ class Admin_Products {
 
 		echo '</select>';
 
+		// Only worth offering once there are more batches than fit.
+		$total = count( self::all_batches() );
+
+		if ( $total > self::COMFORTABLE_COLUMNS ) {
+			$choice  = (string) ( $args['cols'] ?? '' );
+			$columns = array(
+				'6'   => __( 'Soonest 6 months', 'woo-custom-discount' ),
+				'12'  => __( 'Soonest 12 months', 'woo-custom-discount' ),
+				'all' => sprintf(
+					/* translators: %d: number of batches. */
+					__( 'All %d batches', 'woo-custom-discount' ),
+					$total
+				),
+			);
+
+			echo '<select name="cols">';
+
+			foreach ( $columns as $key => $label ) {
+				$selected = $choice === $key || ( $choice === '' && $key === (string) self::COMFORTABLE_COLUMNS );
+
+				printf(
+					'<option value="%1$s"%2$s>%3$s</option>',
+					esc_attr( $key ),
+					selected( $selected, true, false ),
+					esc_html( $label )
+				);
+			}
+
+			echo '</select>';
+		}
+
 		submit_button( __( 'Filter', 'woo-custom-discount' ), 'secondary', '', false );
 
 		if ( self::current_args() !== array() ) {
@@ -237,13 +277,51 @@ class Admin_Products {
 
 		echo '<tr>';
 
+		// Batches this product is in whose column is not on screen. Hiding a
+		// column must not hide the fact that the product is assigned to it.
+		$shown_ids = wp_list_pluck( $batches, 'id' );
+		$offscreen = array_diff( $in, array_map( 'intval', $shown_ids ) );
+
+		$note = '';
+
+		if ( $offscreen !== array() ) {
+			$names = array();
+
+			foreach ( $offscreen as $rule_id ) {
+				$rule = Rules::get( (int) $rule_id );
+
+				if ( $rule ) {
+					$names[] = self::short_month( (string) $rule['expiry_ym'] );
+				}
+			}
+
+			$note = sprintf(
+				'<span class="wcd-grid-more" title="%1$s">%2$s</span>',
+				esc_attr(
+					sprintf(
+						/* translators: %s: comma-separated list of months. */
+						__( 'Also in: %s', 'woo-custom-discount' ),
+						implode( ', ', $names )
+					)
+				),
+				esc_html(
+					sprintf(
+						/* translators: %d: number of batches. */
+						_n( '+%d more batch', '+%d more batches', count( $offscreen ), 'woo-custom-discount' ),
+						count( $offscreen )
+					)
+				)
+			);
+		}
+
 		printf(
-			'<td class="wcd-grid-name"><a href="%1$s">%2$s</a>%3$s</td>',
+			'<td class="wcd-grid-name"><a href="%1$s">%2$s</a>%3$s%4$s</td>',
 			esc_url( (string) get_edit_post_link( $product_id ) ),
 			esc_html( $product->get_name() ),
 			$product->get_sku() !== ''
 				? '<span class="wcd-grid-sku">' . esc_html( $product->get_sku() ) . '</span>'
-				: ''
+				: '',
+			$note
 		);
 
 		printf( '<td class="wcd-num">%s</td>', esc_html( $regular > 0 ? number_format( $regular ) : '—' ) );
@@ -322,14 +400,14 @@ class Admin_Products {
 	}
 
 	/**
-	 * The batches shown as columns.
+	 * Every batch worth offering as a column, soonest first.
 	 *
 	 * Expired ones are left out unless they still hold products, which keeps the
 	 * table readable without hiding an assignment someone might need to undo.
 	 *
 	 * @return array<int,array<string,mixed>>
 	 */
-	private static function visible_batches(): array {
+	private static function all_batches(): array {
 		$out = array();
 
 		foreach ( Rules::query( array( 'type' => Rules::TYPE_BATCH ) ) as $batch ) {
@@ -346,6 +424,43 @@ class Admin_Products {
 		);
 
 		return $out;
+	}
+
+	/**
+	 * The batches actually shown as columns.
+	 *
+	 * A full year of monthly batches is fifteen columns, and the table then
+	 * wants about 1,770px — wider than the screen, so it scrolls sideways and
+	 * every column past the first few is guesswork. Showing the soonest few by
+	 * default keeps it readable; the rest are one click away, and a product
+	 * assigned to a hidden batch is flagged on its row rather than lost.
+	 *
+	 * @return array<int,array<string,mixed>>
+	 */
+	private static function visible_batches(): array {
+		$all   = self::all_batches();
+		$limit = self::column_limit( count( $all ) );
+
+		return $limit === 0 ? $all : array_slice( $all, 0, $limit );
+	}
+
+	/**
+	 * How many columns to draw. Zero means all of them.
+	 */
+	private static function column_limit( int $total ): int {
+		$args   = self::current_args();
+		$choice = (string) ( $args['cols'] ?? '' );
+
+		if ( $choice === 'all' ) {
+			return 0;
+		}
+
+		if ( in_array( $choice, array( '6', '12' ), true ) ) {
+			return (int) $choice;
+		}
+
+		// Nothing chosen: show everything while it still fits, then cap.
+		return $total > self::COMFORTABLE_COLUMNS ? self::COMFORTABLE_COLUMNS : 0;
 	}
 
 	/**
@@ -465,7 +580,7 @@ class Admin_Products {
 	private static function current_args(): array {
 		$out = array();
 
-		foreach ( array( 's', 'pcat', 'show' ) as $key ) {
+		foreach ( array( 's', 'pcat', 'show', 'cols' ) as $key ) {
 			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- navigation only.
 			if ( isset( $_GET[ $key ] ) && $_GET[ $key ] !== '' ) {
 				// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- navigation only.

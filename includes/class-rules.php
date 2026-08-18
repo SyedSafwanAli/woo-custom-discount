@@ -140,7 +140,13 @@ class Rules {
 
 		$row = self::sanitize( $data, true );
 
-		if ( $row === array() && ! isset( $data['products'], $data['categories'] ) ) {
+		// isset() with several arguments is true only when they are all set, so
+		// this used to abandon an update that changed nothing but the product
+		// list — silently, returning false as though there had been nothing to
+		// do. Each list has to be tested on its own.
+		$has_lists = isset( $data['products'] ) || isset( $data['categories'] ) || isset( $data['excluded'] );
+
+		if ( $row === array() && ! $has_lists ) {
 			return false;
 		}
 

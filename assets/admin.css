@@ -534,9 +534,48 @@
 	width: 7em;
 }
 
+/* Frozen while the batch columns scroll past. With a year of monthly batches the
+   table is wider than the screen, and a column of bare checkboxes tells you
+   nothing once the product name has scrolled off the left. */
+.wcd-admin th.wcd-grid-name,
+.wcd-admin td.wcd-grid-name {
+	position: sticky;
+	left: 0;
+	z-index: 1;
+	background: #fff;
+	box-shadow: 1px 0 0 #dcdcde;
+}
+
+.wcd-admin table.wcd-grid tbody tr:nth-child( odd ) td.wcd-grid-name {
+	background: #f6f7f7;
+}
+
+.wcd-admin table.wcd-grid tbody tr:hover td.wcd-grid-name {
+	background: #f6f8ef;
+}
+
+/* Above the row backgrounds, and above the sticky header's own layer. */
+@media ( min-width: 1181px ) {
+	.wcd-admin table.wcd-grid thead th.wcd-grid-name {
+		z-index: 3;
+	}
+}
+
 .wcd-admin .wcd-grid-name a {
 	font-weight: 500;
 	text-decoration: none;
+}
+
+.wcd-admin .wcd-grid-more {
+	display: inline-block;
+	margin-top: 0.2em;
+	padding: 1px 7px;
+	border-radius: 999px;
+	background: #f0f4e4;
+	color: #46591d;
+	font-size: 11px;
+	font-weight: 600;
+	cursor: help;
 }
 
 .wcd-admin .wcd-grid-sku {
