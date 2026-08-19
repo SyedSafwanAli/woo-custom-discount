@@ -788,6 +788,12 @@
 	cursor: pointer;
 }
 
+/* The rule above says display: block, which outranks the browser's own
+   [hidden] { display: none } — so the search hid nothing. */
+.wcd-admin button.wcd-pick__item[hidden] {
+	display: none;
+}
+
 .wcd-admin button.wcd-pick__item:hover,
 .wcd-admin button.wcd-pick__item:focus {
 	background: #eef3e0;
