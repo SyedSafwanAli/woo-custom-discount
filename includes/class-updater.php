@@ -71,10 +71,31 @@ class Updater {
 	 * @return array<string,mixed>|null
 	 */
 	private static function latest(): ?array {
-		$cached = get_site_transient( self::CACHE );
+		$found = self::look();
+
+		return isset( $found['version'] ) ? $found : null;
+	}
+
+	/**
+	 * The last answer from GitHub, good or bad, with the reason kept.
+	 *
+	 * A failure used to be remembered as "nothing", which was quiet in the right
+	 * way but left no way to tell a site with no update from one that cannot
+	 * reach GitHub at all. The reason is kept now so the Status screen can say
+	 * which it is.
+	 *
+	 * @return array<string,mixed>
+	 */
+	private static function look(): array {
+		// Pressing "Check again" should mean it: a wrong token corrected a
+		// minute ago should not leave the site quiet for the rest of the hour.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- reading a flag WordPress itself sets.
+		$forced = isset( $_GET['force-check'] );
+
+		$cached = $forced ? false : get_site_transient( self::CACHE );
 
 		if ( is_array( $cached ) ) {
-			return $cached === array() ? null : $cached;
+			return $cached;
 		}
 
 		$response = wp_remote_get(
@@ -90,20 +111,33 @@ class Updater {
 			)
 		);
 
-		if ( is_wp_error( $response ) || wp_remote_retrieve_response_code( $response ) !== 200 ) {
-			// Remembered as "nothing" for a while, so a wrong token or a rate
-			// limit does not mean a call to GitHub on every admin page load.
-			set_site_transient( self::CACHE, array(), HOUR_IN_SECONDS );
+		if ( is_wp_error( $response ) ) {
+			return self::remember( array( 'error' => $response->get_error_message() ), HOUR_IN_SECONDS );
+		}
 
-			return null;
+		$code = (int) wp_remote_retrieve_response_code( $response );
+
+		if ( $code !== 200 ) {
+			// Remembered for a while, so a wrong token or a rate limit does not
+			// mean a call to GitHub on every admin page load.
+			return self::remember(
+				array(
+					'error' => $code === 404
+						? __( 'No release found. Publish one on GitHub, with the zip attached.', 'woo-custom-discount' )
+						: sprintf(
+							/* translators: %d: HTTP status code. */
+							__( 'GitHub answered %d. The token may be wrong, expired, or without access to this repository.', 'woo-custom-discount' ),
+							$code
+						),
+				),
+				HOUR_IN_SECONDS
+			);
 		}
 
 		$release = json_decode( wp_remote_retrieve_body( $response ), true );
 
 		if ( ! is_array( $release ) || empty( $release['tag_name'] ) ) {
-			set_site_transient( self::CACHE, array(), HOUR_IN_SECONDS );
-
-			return null;
+			return self::remember( array( 'error' => __( 'GitHub answered with something unreadable.', 'woo-custom-discount' ) ), HOUR_IN_SECONDS );
 		}
 
 		$found = array(
@@ -113,9 +147,43 @@ class Updater {
 			'package' => self::package_url( $release ),
 		);
 
-		set_site_transient( self::CACHE, $found, self::CACHE_LIFE );
+		return self::remember( $found, self::CACHE_LIFE );
+	}
 
-		return $found;
+	/**
+	 * Keeps an answer and hands it straight back.
+	 *
+	 * @param array<string,mixed> $answer What was found, or why nothing was.
+	 * @param int                 $life   How long to keep it.
+	 * @return array<string,mixed>
+	 */
+	private static function remember( array $answer, int $life ): array {
+		set_site_transient( self::CACHE, $answer, $life );
+
+		return $answer;
+	}
+
+	/**
+	 * What to show on the Status screen.
+	 *
+	 * @return array{token:bool,version:string,error:string}
+	 */
+	public static function status(): array {
+		if ( self::token() === '' ) {
+			return array(
+				'token'   => false,
+				'version' => '',
+				'error'   => __( 'No token in wp-config.php, so updates are never offered.', 'woo-custom-discount' ),
+			);
+		}
+
+		$found = self::look();
+
+		return array(
+			'token'   => true,
+			'version' => (string) ( $found['version'] ?? '' ),
+			'error'   => (string) ( $found['error'] ?? '' ),
+		);
 	}
 
 	/**
