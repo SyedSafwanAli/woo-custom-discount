@@ -1,8 +1,7 @@
 <?php
 /**
  * Plugin Name:       Woo Custom Discount
- * Plugin URI:        https://github.com/SyedSafwanAli/woo-custom-discount
- * Description:       Discounts, expiry batches, shop filters and countdowns for importedvitamins.com - in one plugin, with no dependency on third-party discount plugins.
+ * Description:       Discounts, expiry batches, shop filters and countdowns - in one plugin, with no dependency on third-party discount plugins.
  * Version:           0.16.0
  * Requires at least: 6.0
  * Requires PHP:      8.0
