@@ -202,6 +202,71 @@ class Variations {
 
 		// Every sale takes one off the batch it came from.
 		add_action( 'woocommerce_variation_set_stock', array( __CLASS__, 'on_variation_stock' ) );
+
+		// And the order says which batch it was, in words, for good.
+		add_action( 'woocommerce_new_order_item', array( __CLASS__, 'stamp_order_item' ), 10, 2 );
+	}
+
+	/**
+	 * Writes the batch onto the order line, in words.
+	 *
+	 * The order already carries which one was bought — WooCommerce puts the
+	 * variation's name on the line and skips the attribute row because of it. But
+	 * that record thins out over time: the value stored is the slug wcd-b81, and
+	 * what a person reads is looked up from the batch when the order is opened.
+	 * Rename that batch, move its month, or let it be deleted once it is sold out,
+	 * and an order from last March starts describing something else.
+	 *
+	 * So the month and the discount are written onto the line at the moment of
+	 * sale and never touched again. An order is a record of what happened, and it
+	 * should not change because the shop moved on.
+	 *
+	 * @param int   $item_id Order item ID.
+	 * @param mixed $item    Order item.
+	 */
+	public static function stamp_order_item( $item_id, $item ): void {
+		if ( ! $item instanceof \WC_Order_Item_Product ) {
+			return;
+		}
+
+		$variation_id = $item->get_variation_id();
+
+		if ( ! $variation_id ) {
+			return;
+		}
+
+		$batch_id = (int) get_post_meta( $variation_id, self::META_BATCH, true );
+
+		if ( ! $batch_id ) {
+			return;
+		}
+
+		$batch = Rules::get( $batch_id );
+
+		if ( ! $batch ) {
+			return;
+		}
+
+		$month = ! empty( $batch['expiry_ym'] )
+			? Importer::format_expiry( (string) $batch['expiry_ym'] )
+			: (string) $batch['title'];
+
+		$percent = (float) $batch['discount_percent'];
+
+		$item->add_meta_data(
+			__( 'Expiry batch', 'woo-custom-discount' ),
+			$percent > 0
+				? sprintf(
+					/* translators: 1: expiry month, 2: discount percentage. */
+					__( '%1$s — %2$s%% off', 'woo-custom-discount' ),
+					$month,
+					Admin_Rules::percent_label( $percent )
+				)
+				: $month,
+			true
+		);
+
+		$item->save_meta_data();
 	}
 
 	/**
