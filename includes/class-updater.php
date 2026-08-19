@@ -35,10 +35,19 @@ class Updater {
 	private const CACHE = 'wcd_latest_release';
 
 	/**
-	 * Twelve hours: long enough that opening the admin does not talk to GitHub
-	 * every time, short enough that a release is noticed the same day.
+	 * Fifteen minutes.
+	 *
+	 * This was twelve hours, which was wrong twice over. WordPress already
+	 * decides how often to look for plugin updates — about once a minute while
+	 * someone is on the Plugins screen, twice a day otherwise — and this cache
+	 * sat on top of that and overruled it. A release published after a check
+	 * stayed invisible for the rest of the twelve hours, on a screen that was
+	 * asking properly and being answered from a stale note.
+	 *
+	 * Short enough now to follow WordPress rather than fight it, long enough that
+	 * a few admin page loads in a row do not each become a call to GitHub.
 	 */
-	private const CACHE_LIFE = 12 * HOUR_IN_SECONDS;
+	private const CACHE_LIFE = 15 * MINUTE_IN_SECONDS;
 
 	/**
 	 * Hooks the update flow, but only where it can work.
@@ -107,10 +116,10 @@ class Updater {
 	 * @return array<string,mixed>
 	 */
 	private static function look(): array {
-		// Pressing "Check again" should mean it: a wrong token corrected a
-		// minute ago should not leave the site quiet for the rest of the hour.
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- reading a flag WordPress itself sets.
-		$forced = isset( $_GET['force-check'] );
+		// Asking to check should mean it. WordPress puts force-check on its own
+		// Updates screen; wcd-check is the same request from ours.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- reading a flag, not acting on one.
+		$forced = isset( $_GET['force-check'] ) || isset( $_GET['wcd-check'] );
 
 		$cached = $forced ? false : get_site_transient( self::CACHE );
 

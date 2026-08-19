@@ -319,14 +319,21 @@ class Admin {
 				esc_html__( 'Go to Plugins', 'woo-custom-discount' )
 			);
 		} elseif ( $updates['version'] !== '' ) {
-			self::row(
-				__( 'Updates', 'woo-custom-discount' ),
-				sprintf(
-					/* translators: %s: version number. */
-					__( 'Up to date (latest release is %s)', 'woo-custom-discount' ),
-					$updates['version']
+			// With a link to ask again. Otherwise "up to date" is a claim the
+			// reader has no way to test, and the answer behind it may be minutes
+			// or hours old.
+			printf(
+				'<tr><td>%1$s</td><td class="wcd-good">%2$s <a href="%3$s">%4$s</a></td></tr>',
+				esc_html__( 'Updates', 'woo-custom-discount' ),
+				esc_html(
+					sprintf(
+						/* translators: %s: version number. */
+						__( 'Up to date (latest release is %s).', 'woo-custom-discount' ),
+						$updates['version']
+					)
 				),
-				true
+				esc_url( self::url( '', array( 'wcd-check' => 1 ) ) ),
+				esc_html__( 'Check now', 'woo-custom-discount' )
 			);
 		}
 
