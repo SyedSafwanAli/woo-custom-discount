@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Woo Custom Discount
  * Description:       Discounts, expiry batches, shop filters and countdowns - in one plugin, with no dependency on third-party discount plugins.
- * Version:           0.17.0
+ * Version:           0.17.1
  * Requires at least: 6.0
  * Requires PHP:      8.0
  * Author:            Syed Safwan Ali
@@ -18,7 +18,7 @@ declare( strict_types = 1 );
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'WCD_VERSION', '0.17.0' );
+define( 'WCD_VERSION', '0.17.1' );
 define( 'WCD_FILE', __FILE__ );
 define( 'WCD_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WCD_URL', plugin_dir_url( __FILE__ ) );

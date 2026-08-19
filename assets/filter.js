@@ -479,6 +479,10 @@
 
 		// Other scripts hang their work off these: lazy images, the badges
 		// plugin, our own countdowns. Without them the new cards arrive inert.
+		panels.forEach( function ( panel ) {
+			panel();
+		} );
+
 		document.dispatchEvent( new CustomEvent( 'wcd:filtered', { bubbles: true } ) );
 
 		if ( window.jQuery ) {
@@ -573,6 +577,51 @@
 		go( window.location.href, false );
 	} );
 
+	// Panels that need putting back in step after the results change. The panel
+	// is lifted out to the body and its listeners live on nodes that must not be
+	// replaced, so it is re-read from the URL rather than swapped for new markup.
+	var panels = [];
+
+	/**
+	 * Makes the panel agree with the address bar.
+	 *
+	 * Without this, clearing a filter left its box still ticked: the chips and
+	 * the results were replaced, but the drawer was never told.
+	 */
+	function resync( scope, range ) {
+		var params = new URLSearchParams( window.location.search );
+
+		scope.querySelectorAll( '.wcd-opt' ).forEach( function ( option ) {
+			var group = option.getAttribute( 'data-group' );
+			var value = option.getAttribute( 'data-value' );
+			var item = option.closest( '.wcd-item' );
+
+			if ( ! group || ! value || ! item ) {
+				return;
+			}
+
+			var chosen = ( params.get( group ) || '' ).split( ',' ).indexOf( value ) !== -1;
+
+			item.classList.toggle( 'is-on', chosen );
+			option.setAttribute( 'aria-pressed', chosen ? 'true' : 'false' );
+		} );
+
+		// The price handles are not options, so they are put back separately.
+		if ( range ) {
+			var price = ( params.get( 'price' ) || '' ).split( '-' );
+
+			var chosen = price.length === 2 && price[ 0 ] !== '' && price[ 1 ] !== '';
+
+			range.lo.value = chosen ? price[ 0 ] : range.boundMin;
+			range.hi.value = chosen ? price[ 1 ] : range.boundMax;
+
+			clampRange( range, range.lo );
+			paintRange( range );
+		}
+
+		refreshApply( scope, range );
+	}
+
 	function setup( root ) {
 		root.classList.add( 'wcd-js' );
 
@@ -634,6 +683,10 @@
 				toggle( scope, option, range );
 			}
 		};
+
+		panels.push( function () {
+			resync( scope, range );
+		} );
 
 		root.addEventListener( 'click', onClick );
 
