@@ -540,6 +540,34 @@
 	font-variant-numeric: tabular-nums;
 }
 
+/* Quiet until the row is under the pointer, the way WordPress does its own list
+   tables — fifty rows of blue links would drown the names they belong to. */
+.wcd-admin .wcd-plist__links {
+	display: inline-flex;
+	gap: 0.75em;
+	margin-top: 2px;
+	font-size: 12px;
+	opacity: 0;
+	transition: opacity 0.12s ease;
+}
+
+.wcd-admin .wcd-plist__row:hover .wcd-plist__links,
+.wcd-admin .wcd-plist__links:focus-within {
+	opacity: 1;
+}
+
+.wcd-admin .wcd-plist__title a.wcd-plist__links-item,
+.wcd-admin .wcd-plist__links a {
+	font-weight: 400;
+	text-decoration: none;
+	color: #2271b1;
+}
+
+.wcd-admin .wcd-plist__links a:hover {
+	color: #135e96;
+	text-decoration: underline;
+}
+
 .wcd-admin .wcd-plist__prices {
 	display: flex;
 	align-items: baseline;

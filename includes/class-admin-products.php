@@ -242,13 +242,28 @@ class Admin_Products {
 		// --- Name, SKU, prices ----------------------------------------------
 		echo '<div class="wcd-plist__head">';
 
+		// Both open in a new tab on purpose. This screen holds unsaved changes —
+		// chips added, pictures chosen — and leaving it to look at a product
+		// would throw them away.
+		$links = sprintf(
+			'<span class="wcd-plist__links">
+				<a href="%1$s" target="_blank" rel="noopener">%2$s</a>
+				<a href="%3$s" target="_blank" rel="noopener">%4$s</a>
+			</span>',
+			esc_url( (string) get_edit_post_link( $product_id ) ),
+			esc_html__( 'Edit', 'woo-custom-discount' ),
+			esc_url( (string) get_permalink( $product_id ) ),
+			esc_html__( 'View', 'woo-custom-discount' )
+		);
+
 		printf(
-			'<div class="wcd-plist__title"><a href="%1$s">%2$s</a>%3$s</div>',
+			'<div class="wcd-plist__title"><a href="%1$s" target="_blank" rel="noopener">%2$s</a>%3$s%4$s</div>',
 			esc_url( (string) get_edit_post_link( $product_id ) ),
 			esc_html( $product->get_name() ),
 			$product->get_sku() !== ''
 				? '<span class="wcd-plist__sku">' . esc_html( $product->get_sku() ) . '</span>'
-				: ''
+				: '',
+			$links // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped when built.
 		);
 
 		echo '<div class="wcd-plist__prices">';
