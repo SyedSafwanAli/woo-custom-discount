@@ -710,6 +710,46 @@
 	display: block;
 }
 
+/* --- How many are left in a batch ---------------------------------------- */
+
+/* Narrow on purpose. These are counts of stock a shop is clearing — tens, not
+   thousands — and a wide box on every chip would push the labels apart. */
+.wcd-admin input.wcd-bchip__qty {
+	width: 3.4em;
+	min-height: 0;
+	height: 22px;
+	margin: 0;
+	padding: 0 2px 0 5px;
+	border: 1px solid #cfd6bd;
+	border-radius: 3px;
+	background: #fff;
+	color: #3c4d18;
+	font-size: 11px;
+	font-weight: 600;
+	line-height: 20px;
+	text-align: center;
+	box-shadow: none;
+	font-variant-numeric: tabular-nums;
+}
+
+.wcd-admin input.wcd-bchip__qty:focus {
+	border-color: #5f7728;
+	box-shadow: 0 0 0 1px #5f7728;
+	outline: none;
+}
+
+/* An empty box is the ordinary case, so it should not look like something
+   waiting to be filled in. */
+.wcd-admin input.wcd-bchip__qty:placeholder-shown {
+	border-style: dashed;
+	color: #8c8f94;
+	font-weight: 400;
+}
+
+.wcd-admin input.wcd-bchip__qty::placeholder {
+	color: #b0b4a4;
+}
+
 /* --- The searchable picker ----------------------------------------------- */
 
 /* Which of the two is showing depends on whether the script arrived. The select

@@ -101,6 +101,66 @@ class Variations {
 	}
 
 	/**
+	 * How many are left in each batch, as batch id => quantity.
+	 *
+	 * Optional, like the picture: a batch with no number here is not counted
+	 * separately and sells against the product's own stock, which is how every
+	 * batch behaved before this existed.
+	 *
+	 * Kept on the product for the same reason as the pictures — a variation is
+	 * rebuilt whenever the batches change, and the count would go with it. It is
+	 * written back from the variation after every sale, so what is stored is
+	 * always what is left, not what was first put in.
+	 */
+	public const META_BATCH_STOCK = '_wcd_batch_stock';
+
+	/**
+	 * The quantity left in each of a product's batches.
+	 *
+	 * @return array<int,int> Batch id => quantity. Batches with no limit are absent.
+	 */
+	public static function stock_for( int $product_id ): array {
+		$stored = get_post_meta( $product_id, self::META_BATCH_STOCK, true );
+
+		if ( ! is_array( $stored ) ) {
+			return array();
+		}
+
+		$out = array();
+
+		foreach ( $stored as $batch_id => $quantity ) {
+			$batch_id = (int) $batch_id;
+
+			if ( $batch_id > 0 && $quantity !== '' && $quantity !== null ) {
+				$out[ $batch_id ] = (int) $quantity;
+			}
+		}
+
+		return $out;
+	}
+
+	/**
+	 * Sets or clears the quantity for one batch on one product.
+	 *
+	 * @param int|null $quantity Number left, or null for no separate count.
+	 */
+	public static function set_stock( int $product_id, int $batch_id, ?int $quantity ): void {
+		$stock = self::stock_for( $product_id );
+
+		if ( $quantity === null ) {
+			unset( $stock[ $batch_id ] );
+		} else {
+			$stock[ $batch_id ] = max( 0, $quantity );
+		}
+
+		if ( $stock === array() ) {
+			delete_post_meta( $product_id, self::META_BATCH_STOCK );
+		} else {
+			update_post_meta( $product_id, self::META_BATCH_STOCK, $stock );
+		}
+	}
+
+	/**
 	 * Sets or clears the picture for one batch on one product.
 	 *
 	 * @param int $attachment_id Attachment, or 0 to go back to the product's own.
@@ -139,6 +199,92 @@ class Variations {
 
 		// And the price gets the figure it is discounted from.
 		add_filter( 'woocommerce_get_price_html', array( __CLASS__, 'price_html' ), 10, 2 );
+
+		// Every sale takes one off the batch it came from.
+		add_action( 'woocommerce_variation_set_stock', array( __CLASS__, 'on_variation_stock' ) );
+	}
+
+	/**
+	 * Follows a batch's stock down, and retires the batch when it runs out.
+	 *
+	 * WooCommerce reduces the variation's stock on every order by itself. What it
+	 * cannot know is that the variation stands for a batch: when the last August
+	 * one is sold, August is not merely out of stock, it is over, and the product
+	 * should go back to being sold at whatever its remaining batches say.
+	 *
+	 * Runs on the admin's own stock edits too, which is the point — correcting a
+	 * count by hand should behave exactly like selling one.
+	 *
+	 * @param \WC_Product_Variation|mixed $variation The variation whose stock changed.
+	 */
+	public static function on_variation_stock( $variation ): void {
+		if ( ! $variation instanceof \WC_Product_Variation ) {
+			return;
+		}
+
+		// Rebuilding a product's variations sets stock as it goes. Answering those
+		// writes would have us retiring batches in the middle of building them.
+		if ( Price_Engine::is_busy() ) {
+			return;
+		}
+
+		$variation_id = $variation->get_id();
+		$batch_id     = (int) get_post_meta( $variation_id, self::META_BATCH, true );
+
+		if ( ! $batch_id ) {
+			return;
+		}
+
+		$product_id = $variation->get_parent_id();
+
+		if ( ! $product_id || ! self::owns( $product_id ) ) {
+			return;
+		}
+
+		$left = $variation->get_stock_quantity();
+
+		if ( $left === null ) {
+			return;
+		}
+
+		$left = (int) $left;
+
+		if ( $left > 0 ) {
+			// Keep the product's own record in step, so a rebuild restores what is
+			// left rather than what was first put in.
+			self::set_stock( $product_id, $batch_id, $left );
+
+			return;
+		}
+
+		self::retire_batch( $product_id, $batch_id );
+	}
+
+	/**
+	 * Takes a sold-out batch off one product and rebuilds what is left.
+	 */
+	private static function retire_batch( int $product_id, int $batch_id ): void {
+		$keep = array();
+
+		foreach ( self::batches_for( $product_id ) as $batch ) {
+			if ( (int) $batch['id'] !== $batch_id ) {
+				$keep[] = (int) $batch['id'];
+			}
+		}
+
+		// Only the batch that ran out is touched; every other batch this product
+		// is in, and every other product in this batch, is left alone.
+		Rules::set_product_batches( $product_id, $keep, array( $batch_id ) );
+
+		self::set_stock( $product_id, $batch_id, null );
+		self::set_image( $product_id, $batch_id, 0 );
+
+		Resolver::flush();
+		Expiry::flush_cache();
+
+		// One batch left means a simple product again, none means no discount —
+		// both of which this already knows how to do.
+		Price_Engine::apply_product( $product_id );
 	}
 
 	/**
@@ -592,6 +738,7 @@ class Variations {
 	 */
 	private static function apply_variations( int $product_id, array $batches, float $regular ): void {
 		$images   = self::images_for( $product_id );
+		$stock    = self::stock_for( $product_id );
 		$existing = array();
 
 		foreach ( self::our_variations( $product_id ) as $variation_id ) {
@@ -645,6 +792,19 @@ class Variations {
 			// Set every time, so clearing a picture takes effect as surely as
 			// choosing one.
 			$variation->set_image_id( isset( $images[ $batch_id ] ) ? (string) $images[ $batch_id ] : '' );
+
+			// A batch given a number counts down on its own; one without sells
+			// against the product's stock, as every batch did before this. Once
+			// the variation is managing its own, WooCommerce takes each sale off
+			// it without anything here being involved.
+			if ( isset( $stock[ $batch_id ] ) ) {
+				$variation->set_manage_stock( true );
+				$variation->set_stock_quantity( $stock[ $batch_id ] );
+				$variation->set_backorders( 'no' );
+			} else {
+				$variation->set_manage_stock( false );
+				$variation->set_stock_quantity( null );
+			}
 
 			$variation->set_menu_order( $index );
 			$variation->set_status( 'publish' );

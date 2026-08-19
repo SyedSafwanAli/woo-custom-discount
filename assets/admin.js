@@ -124,6 +124,17 @@
 		text.className = 'wcd-bchip__label';
 		text.textContent = label;
 
+		// Empty means no separate count for this batch, which is how every batch
+		// behaved before this box existed.
+		var qty = document.createElement( 'input' );
+		qty.type = 'number';
+		qty.className = 'wcd-bchip__qty';
+		qty.name = 'batch_stock[' + productId + '][' + batchId + ']';
+		qty.value = '';
+		qty.min = '0';
+		qty.step = '1';
+		qty.placeholder = '∞';
+
 		var button = document.createElement( 'button' );
 		button.type = 'button';
 		button.className = 'wcd-bchip__x';
@@ -138,6 +149,7 @@
 
 		chip.appendChild( pic );
 		chip.appendChild( text );
+		chip.appendChild( qty );
 		chip.appendChild( button );
 		chip.appendChild( input );
 		chip.appendChild( picInput );

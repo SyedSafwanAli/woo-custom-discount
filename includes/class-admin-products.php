@@ -305,6 +305,7 @@ class Admin_Products {
 		echo '<span class="wcd-plist__chips" data-wcd-chips>';
 
 		$images = Variations::images_for( $product_id );
+		$stock  = Variations::stock_for( $product_id );
 
 		foreach ( $in as $batch_id ) {
 			$batch = $by_id[ (int) $batch_id ] ?? null;
@@ -314,7 +315,12 @@ class Admin_Products {
 			}
 
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped when built.
-			echo self::chip_html( $product_id, $batch, $images[ (int) $batch_id ] ?? 0 );
+			echo self::chip_html(
+				$product_id,
+				$batch,
+				$images[ (int) $batch_id ] ?? 0,
+				$stock[ (int) $batch_id ] ?? null
+			);
 		}
 
 		echo '</span>';
@@ -359,7 +365,7 @@ class Admin_Products {
 	 *
 	 * @param array<string,mixed> $batch Batch data.
 	 */
-	private static function chip_html( int $product_id, array $batch, int $image_id = 0 ): string {
+	private static function chip_html( int $product_id, array $batch, int $image_id = 0, ?int $stock = null ): string {
 		$batch_id = (int) $batch['id'];
 		$thumb    = $image_id > 0 ? wp_get_attachment_image_url( $image_id, 'thumbnail' ) : '';
 
@@ -367,6 +373,8 @@ class Admin_Products {
 			'<span class="wcd-bchip%7$s" data-batch="%1$d">
 				<button type="button" class="wcd-bchip__pic" data-wcd-image title="%5$s" aria-label="%5$s">%6$s</button>
 				<span class="wcd-bchip__label">%2$s</span>
+				<input type="number" class="wcd-bchip__qty" name="batch_stock[%4$d][%1$d]" value="%9$s"
+					min="0" step="1" inputmode="numeric" placeholder="%10$s" title="%11$s" aria-label="%11$s">
 				<button type="button" class="wcd-bchip__x" data-wcd-remove aria-label="%3$s">&times;</button>
 				<input type="hidden" name="batches[%4$d][]" value="%1$d">
 				<input type="hidden" class="wcd-bchip__img" name="batch_images[%4$d][%1$d]" value="%8$d">
@@ -386,7 +394,10 @@ class Admin_Products {
 				? '<img src="' . esc_url( $thumb ) . '" alt="">'
 				: '<span class="wcd-bchip__pic-empty" aria-hidden="true">+</span>',
 			$thumb !== '' ? ' has-image' : '',
-			$image_id
+			$image_id,
+			$stock === null ? '' : esc_attr( (string) $stock ),
+			esc_attr_x( '∞', 'no separate stock for this batch', 'woo-custom-discount' ),
+			esc_attr__( 'How many are left in this batch. Leave empty to sell against the product\'s own stock.', 'woo-custom-discount' )
 		);
 	}
 
@@ -555,6 +566,7 @@ class Admin_Products {
 		$chosen  = isset( $_POST['batches'] ) ? (array) wp_unslash( $_POST['batches'] ) : array();
 
 		$pictures = isset( $_POST['batch_images'] ) ? (array) wp_unslash( $_POST['batch_images'] ) : array();
+		$counts   = isset( $_POST['batch_stock'] ) ? (array) wp_unslash( $_POST['batch_stock'] ) : array();
 
 		$changed = 0;
 
@@ -581,6 +593,33 @@ class Admin_Products {
 			if ( $before !== $after ) {
 				foreach ( array_keys( $before + $after ) as $batch_id ) {
 					Variations::set_image( $product_id, (int) $batch_id, $after[ $batch_id ] ?? 0 );
+				}
+
+				$touched = true;
+			}
+
+			// Quantities, the same way: only for the batches the product is still
+			// in, and an empty box means no separate count rather than zero.
+			$stock_before = Variations::stock_for( $product_id );
+			$stock_after  = array();
+
+			foreach ( $checked as $batch_id ) {
+				$raw = isset( $counts[ $product_id ][ $batch_id ] )
+					? trim( (string) $counts[ $product_id ][ $batch_id ] )
+					: '';
+
+				if ( $raw !== '' && is_numeric( $raw ) ) {
+					$stock_after[ $batch_id ] = max( 0, (int) $raw );
+				}
+			}
+
+			if ( $stock_before !== $stock_after ) {
+				foreach ( array_keys( $stock_before + $stock_after ) as $batch_id ) {
+					Variations::set_stock(
+						$product_id,
+						(int) $batch_id,
+						array_key_exists( $batch_id, $stock_after ) ? (int) $stock_after[ $batch_id ] : null
+					);
 				}
 
 				$touched = true;
