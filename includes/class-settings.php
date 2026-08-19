@@ -113,6 +113,11 @@ class Settings {
 			// Right suits a row that already has a heading on the left.
 			'filter_align'      => 'left',
 
+			// Read-only GitHub token, so the plugin can see its own releases and
+			// offer updates the ordinary way. Empty means no update checks at
+			// all. A WCD_GITHUB_TOKEN constant in wp-config.php overrides this.
+			'github_token'      => '',
+
 			// Keep rules and settings when the plugin is deleted.
 			'purge_on_uninstall' => false,
 		);

@@ -181,6 +181,35 @@ class Admin_Settings {
 		echo '</p>';
 		echo '</td></tr></tbody></table>';
 
+		// --- Updates ---------------------------------------------------------
+		echo '<h2>' . esc_html__( 'Updates', 'woo-custom-discount' ) . '</h2>';
+		echo '<table class="form-table" role="presentation"><tbody><tr><th scope="row">';
+		esc_html_e( 'GitHub token', 'woo-custom-discount' );
+		echo '</th><td>';
+
+		if ( Updater::token_is_pinned() ) {
+			echo '<p><strong>' . esc_html__( 'Set in wp-config.php.', 'woo-custom-discount' ) . '</strong> ';
+			esc_html_e( 'That one is used, and anything typed here is ignored.', 'woo-custom-discount' );
+			echo '</p>';
+		} else {
+			$token = (string) Settings::get( 'github_token', '' );
+
+			printf(
+				'<input type="password" name="github_token" value="%1$s" class="regular-text" autocomplete="off" placeholder="github_pat_…">',
+				esc_attr( $token )
+			);
+
+			echo '<p class="description">';
+			esc_html_e( 'Without this the plugin never checks for updates and never offers one. It lives in a private repository, so it has to identify itself.', 'woo-custom-discount' );
+			echo '</p>';
+
+			echo '<p class="description">';
+			esc_html_e( 'Use a token that can only read, and only this one repository. It is kept in the database, so it travels in a database export — a token that can read a little is a small thing to lose; one that can write is not.', 'woo-custom-discount' );
+			echo '</p>';
+		}
+
+		echo '</td></tr></tbody></table>';
+
 		// --- Uninstall -------------------------------------------------------
 		echo '<h2>' . esc_html__( 'When the plugin is deleted', 'woo-custom-discount' ) . '</h2>';
 		echo '<table class="form-table" role="presentation"><tbody><tr><th scope="row">';
@@ -286,6 +315,9 @@ class Admin_Settings {
 				'rounding'           => in_array( $rounding, array( 'down', 'near', 'up' ), true ) ? $rounding : 'down',
 				'countdown_in_loop'  => in_array( $in_loop, array( 'overlay', 'below' ), true ) ? $in_loop : 'overlay',
 				'show_savings'       => ! empty( $_POST['show_savings'] ),
+				'github_token'       => isset( $_POST['github_token'] )
+					? sanitize_text_field( wp_unslash( (string) $_POST['github_token'] ) )
+					: (string) Settings::get( 'github_token', '' ),
 				'purge_on_uninstall' => ! empty( $_POST['purge_on_uninstall'] ),
 			)
 		);

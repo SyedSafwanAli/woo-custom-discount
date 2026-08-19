@@ -55,10 +55,30 @@ class Updater {
 	}
 
 	/**
-	 * The token, from wp-config.php.
+	 * The token.
+	 *
+	 * Two places, in order. A constant in wp-config.php is the safer of the two —
+	 * it stays out of the database, so it does not travel in a database export —
+	 * but it means editing a file on the server, which is not a thing to ask for
+	 * every time. The settings field is the ordinary way: paste it once in the
+	 * admin and never touch a file.
+	 *
+	 * The constant wins where both exist, so a site already set up that way keeps
+	 * working and does not quietly start using a different token.
 	 */
 	private static function token(): string {
-		return defined( 'WCD_GITHUB_TOKEN' ) ? trim( (string) WCD_GITHUB_TOKEN ) : '';
+		if ( defined( 'WCD_GITHUB_TOKEN' ) && trim( (string) WCD_GITHUB_TOKEN ) !== '' ) {
+			return trim( (string) WCD_GITHUB_TOKEN );
+		}
+
+		return trim( (string) Settings::get( 'github_token', '' ) );
+	}
+
+	/**
+	 * Whether the token came from wp-config.php rather than the settings.
+	 */
+	public static function token_is_pinned(): bool {
+		return defined( 'WCD_GITHUB_TOKEN' ) && trim( (string) WCD_GITHUB_TOKEN ) !== '';
 	}
 
 	/**
@@ -173,7 +193,7 @@ class Updater {
 			return array(
 				'token'   => false,
 				'version' => '',
-				'error'   => __( 'No token in wp-config.php, so updates are never offered.', 'woo-custom-discount' ),
+				'error'   => __( 'No token yet, so updates are never offered. Add one under Settings.', 'woo-custom-discount' ),
 			);
 		}
 
