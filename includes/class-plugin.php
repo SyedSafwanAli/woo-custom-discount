@@ -45,6 +45,11 @@ class Plugin {
 
 		if ( is_admin() ) {
 			Admin::init();
+
+			// Only in the admin: nothing about update notices concerns a
+			// shopper, and the check costs a request the front end should
+			// never make.
+			Updater::init();
 		}
 
 		// Each feature waits for its own switch. Nothing below runs on a fresh
