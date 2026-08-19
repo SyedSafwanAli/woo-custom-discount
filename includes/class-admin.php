@@ -302,20 +302,30 @@ class Admin {
 
 		if ( $updates['error'] !== '' ) {
 			self::row( __( 'Updates', 'woo-custom-discount' ), $updates['error'], false );
+		} elseif ( version_compare( $updates['version'], WCD_VERSION, '>' ) ) {
+			// Saying a version is waiting and leaving the reader to go and find
+			// it is half a message. The row takes them there.
+			printf(
+				'<tr><td>%1$s</td><td class="wcd-good">%2$s <a href="%3$s">%4$s</a></td></tr>',
+				esc_html__( 'Updates', 'woo-custom-discount' ),
+				esc_html(
+					sprintf(
+						/* translators: %s: version number. */
+						__( '%s is ready to install.', 'woo-custom-discount' ),
+						$updates['version']
+					)
+				),
+				esc_url( self_admin_url( 'plugins.php?plugin_status=upgrade' ) ),
+				esc_html__( 'Go to Plugins', 'woo-custom-discount' )
+			);
 		} elseif ( $updates['version'] !== '' ) {
 			self::row(
 				__( 'Updates', 'woo-custom-discount' ),
-				version_compare( $updates['version'], WCD_VERSION, '>' )
-					? sprintf(
-						/* translators: %s: version number. */
-						__( '%s is ready to install', 'woo-custom-discount' ),
-						$updates['version']
-					)
-					: sprintf(
-						/* translators: %s: version number. */
-						__( 'Up to date (latest release is %s)', 'woo-custom-discount' ),
-						$updates['version']
-					),
+				sprintf(
+					/* translators: %s: version number. */
+					__( 'Up to date (latest release is %s)', 'woo-custom-discount' ),
+					$updates['version']
+				),
 				true
 			);
 		}
