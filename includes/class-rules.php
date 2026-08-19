@@ -171,6 +171,12 @@ class Rules {
 
 		$wpdb->delete( Install::table( Install::TABLE_ITEMS ), array( 'rule_id' => $id ) );
 
+		// The picture and the count a product kept for this batch are about a
+		// pairing that no longer exists. Left behind they are invisible and
+		// inert, and they pile up: every delete-and-import cycle would add a
+		// fresh set nobody can see or reach.
+		Variations::forget_batch( $id );
+
 		return (bool) $wpdb->delete( Install::table( Install::TABLE_RULES ), array( 'id' => $id ) );
 	}
 

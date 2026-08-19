@@ -79,7 +79,10 @@ class Exporter {
 			'countdown_enabled' => (bool) $rule['countdown_enabled'],
 			'priority'          => (int) $rule['priority'],
 			'notes'             => (string) $rule['notes'],
-			'products'          => self::describe_products( $rule['products'] ),
+			'products'          => self::describe_products(
+				$rule['products'],
+				$rule['type'] === Rules::TYPE_BATCH ? (int) $rule['id'] : 0
+			),
 			'excluded'          => self::describe_products( $rule['excluded'] ),
 			'categories'        => self::describe_categories( $rule['categories'] ),
 		);
@@ -91,8 +94,14 @@ class Exporter {
 	 * @param int[] $ids Product IDs.
 	 * @return array<int,array<string,mixed>>
 	 */
-	private static function describe_products( array $ids ): array {
+	private static function describe_products( array $ids, int $batch_id = 0 ): array {
 		$out = array();
+
+		// A batch's pictures and counts belong to the pairing of product and
+		// batch, so they travel with the product inside the batch — not as a
+		// separate list that would have to be matched up again at the other end.
+		$images = array();
+		$stock  = array();
 
 		foreach ( $ids as $id ) {
 			$product = wc_get_product( $id );
@@ -101,14 +110,89 @@ class Exporter {
 				continue;
 			}
 
-			$out[] = array(
+			$entry = array(
 				'id'   => (int) $id,
 				'sku'  => (string) $product->get_sku(),
 				'name' => $product->get_name(),
 			);
+
+			if ( $batch_id > 0 ) {
+				if ( ! isset( $images[ $id ] ) ) {
+					$images[ $id ] = Variations::images_for( (int) $id );
+					$stock[ $id ]  = Variations::stock_for( (int) $id );
+				}
+
+				if ( isset( $images[ $id ][ $batch_id ] ) ) {
+					$entry['image'] = self::describe_image( (int) $images[ $id ][ $batch_id ] );
+				}
+
+				if ( isset( $stock[ $id ][ $batch_id ] ) ) {
+					$entry['stock'] = (int) $stock[ $id ][ $batch_id ];
+				}
+			}
+
+			$out[] = $entry;
 		}
 
 		return $out;
+	}
+
+	/**
+	 * A picture written so the other site can find its own copy of it.
+	 *
+	 * The attachment ID is right on the same site and meaningless on another one,
+	 * where it would point at whatever image happens to hold that number. The file
+	 * name is the part that survives the crossing, so both go, and the importer
+	 * only trusts the ID when the file name agrees with it.
+	 *
+	 * @return array<string,mixed>
+	 */
+	private static function describe_image( int $attachment_id ): array {
+		$file = get_post_meta( $attachment_id, '_wp_attached_file', true );
+
+		return array(
+			'id'   => $attachment_id,
+			'file' => is_string( $file ) ? basename( $file ) : '',
+		);
+	}
+
+	/**
+	 * Finds an exported picture in this site's media library.
+	 *
+	 * @param array<string,mixed> $entry Exported image record.
+	 * @return int Attachment ID, or 0 when this site has no copy of it.
+	 */
+	private static function match_image( array $entry ): int {
+		global $wpdb;
+
+		$id   = (int) ( $entry['id'] ?? 0 );
+		$file = (string) ( $entry['file'] ?? '' );
+
+		if ( $id > 0 && get_post_type( $id ) === 'attachment' ) {
+			$here = get_post_meta( $id, '_wp_attached_file', true );
+
+			// On the same site both agree and this is the whole story. On another
+			// site the number will almost always hold a different picture, and
+			// disagreeing is exactly how we find that out.
+			if ( $file === '' || ( is_string( $here ) && basename( $here ) === $file ) ) {
+				return $id;
+			}
+		}
+
+		if ( $file === '' ) {
+			return 0;
+		}
+
+		$by_file = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT post_id FROM {$wpdb->postmeta}
+				  WHERE meta_key = '_wp_attached_file' AND meta_value LIKE %s
+				  ORDER BY post_id DESC LIMIT 1",
+				'%' . $wpdb->esc_like( $file )
+			)
+		);
+
+		return $by_file ? (int) $by_file : 0;
 	}
 
 	/**
@@ -272,8 +356,26 @@ class Exporter {
 				)
 			);
 
-			if ( $id ) {
-				++$created[ $type ];
+			if ( ! $id ) {
+				continue;
+			}
+
+			++$created[ $type ];
+
+			// The pictures and counts could only be written once the batch existed
+			// here and had an ID of its own — the exported IDs belong to the site
+			// the file came from, and on a round trip through a delete they are
+			// gone even there.
+			if ( $type === Rules::TYPE_BATCH ) {
+				foreach ( $rule['products'] as $product ) {
+					if ( isset( $product['image'] ) ) {
+						Variations::set_image( (int) $product['id'], (int) $id, (int) $product['image'] );
+					}
+
+					if ( isset( $product['stock'] ) ) {
+						Variations::set_stock( (int) $product['id'], (int) $id, (int) $product['stock'] );
+					}
+				}
 			}
 		}
 
@@ -325,12 +427,28 @@ class Exporter {
 			$name = (string) ( $entry['name'] ?? '' );
 			$id   = (int) ( $entry['id'] ?? 0 );
 
+			// Carried through the match so the batch can be given them once it
+			// exists here and has an ID of its own.
+			$extras = array();
+
+			if ( isset( $entry['stock'] ) && $entry['stock'] !== '' ) {
+				$extras['stock'] = (int) $entry['stock'];
+			}
+
+			if ( isset( $entry['image'] ) && is_array( $entry['image'] ) ) {
+				$picture = self::match_image( $entry['image'] );
+
+				if ( $picture > 0 ) {
+					$extras['image'] = $picture;
+				}
+			}
+
 			// 1. SKU. Unique by definition, and survives a different database.
 			if ( $sku !== '' ) {
 				$by_sku = wc_get_product_id_by_sku( $sku );
 
 				if ( $by_sku ) {
-					$found[] = array(
+					$found[] = $extras + array(
 						'id'     => (int) $by_sku,
 						'name'   => get_the_title( $by_sku ),
 						'how'    => 'sku',
@@ -349,7 +467,7 @@ class Exporter {
 
 				if ( $product ) {
 					if ( self::names_match( $name, $product->get_name() ) ) {
-						$found[] = array(
+						$found[] = $extras + array(
 							'id'     => $id,
 							'name'   => $product->get_name(),
 							'how'    => 'id',

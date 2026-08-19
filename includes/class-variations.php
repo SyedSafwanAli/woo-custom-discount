@@ -161,6 +161,29 @@ class Variations {
 	}
 
 	/**
+	 * Drops every product's picture and count for a batch that has gone.
+	 *
+	 * Only products that hold one of these keys are looked at, which on this
+	 * catalogue is the handful in batches rather than all of them.
+	 */
+	public static function forget_batch( int $batch_id ): void {
+		global $wpdb;
+
+		$product_ids = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT DISTINCT post_id FROM {$wpdb->postmeta} WHERE meta_key IN ( %s, %s )",
+				self::META_BATCH_IMAGES,
+				self::META_BATCH_STOCK
+			)
+		);
+
+		foreach ( array_map( 'intval', (array) $product_ids ) as $product_id ) {
+			self::set_image( $product_id, $batch_id, 0 );
+			self::set_stock( $product_id, $batch_id, null );
+		}
+	}
+
+	/**
 	 * Sets or clears the picture for one batch on one product.
 	 *
 	 * @param int $attachment_id Attachment, or 0 to go back to the product's own.
