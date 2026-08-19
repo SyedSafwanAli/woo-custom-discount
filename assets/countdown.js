@@ -60,16 +60,24 @@
 		return true;
 	}
 
+	// One list and one interval for the whole page, however many times new
+	// cards arrive.
+	var timers = [];
+	var ticking = null;
+
 	function start() {
 		var nodes = document.querySelectorAll( '[data-wcd-countdown]' );
 
-		if ( ! nodes.length ) {
-			return;
-		}
-
-		var timers = [];
-
 		Array.prototype.forEach.call( nodes, function ( element ) {
+			// Filtering swaps fresh cards in beside ones already counting down.
+			// Without this the old ones would be counted twice and run twice as
+			// fast.
+			if ( element.hasAttribute( 'data-wcd-running' ) ) {
+				return;
+			}
+
+			element.setAttribute( 'data-wcd-running', '' );
+
 			var ends = parseInt( element.getAttribute( 'data-ends' ), 10 );
 
 			if ( ! ends ) {
@@ -86,14 +94,15 @@
 			}
 		} );
 
-		if ( ! timers.length ) {
-			return;
+		if ( timers.length && ! ticking ) {
+			ticking = setInterval( function () {
+				// Cards that have been swapped away are dropped here, so the
+				// list cannot grow forever on a page that is filtered a lot.
+				timers = timers.filter( function ( timer ) {
+					return document.body.contains( timer.element ) && tick( timer );
+				} );
+			}, 1000 );
 		}
-
-		// One interval for every timer on the page, rather than one each.
-		setInterval( function () {
-			timers = timers.filter( tick );
-		}, 1000 );
 	}
 
 	if ( document.readyState === 'loading' ) {
@@ -101,4 +110,8 @@
 	} else {
 		start();
 	}
+
+	// The filter replaces the grid without reloading; the new cards need
+	// their clocks started.
+	document.addEventListener( 'wcd:filtered', start );
 } )();

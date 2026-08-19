@@ -782,3 +782,38 @@ html.wcd-locked body {
 		transition: none;
 	}
 }
+
+/* --- While the next set of results is on its way --------------------------- */
+
+/* Dimmed and unclickable rather than emptied: the page keeps its height, so
+   nothing below jumps while the request is in flight. */
+.wcd-loading {
+	position: relative;
+	opacity: 0.45;
+	pointer-events: none;
+	transition: opacity 0.15s ease;
+}
+
+.wcd-loading::after {
+	content: "";
+	position: absolute;
+	top: 60px;
+	left: 50%;
+	width: 28px;
+	height: 28px;
+	margin-left: -14px;
+	border: 3px solid rgba( 95, 119, 40, 0.25 );
+	border-top-color: #5f7728;
+	border-radius: 50%;
+	animation: wcd-spin 0.7s linear infinite;
+}
+
+@keyframes wcd-spin {
+	to { transform: rotate( 360deg ); }
+}
+
+@media ( prefers-reduced-motion: reduce ) {
+	.wcd-loading::after {
+		animation-duration: 2s;
+	}
+}

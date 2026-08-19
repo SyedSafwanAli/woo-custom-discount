@@ -392,6 +392,187 @@
 		return host;
 	}
 
+
+	/* ------------------------------------------------------------------
+	 * Applying a filter without reloading the page
+	 *
+	 * Every option is still a link and every apply still produces a real URL:
+	 * that is what makes the filter work with the script switched off, keeps
+	 * the address bar shareable, and lets the back button behave. What changes
+	 * here is only how the page gets from one URL to the next — the same
+	 * document is fetched and the parts that differ are swapped in, instead of
+	 * the browser throwing the page away and building it again.
+	 * --------------------------------------------------------------- */
+
+	// The product grid, the count above it and the pagination below, in one
+	// piece on this theme. The fallbacks are for a shop that is not built with
+	// Divi's module.
+	var SWAP = [
+		'.et_pb_shop .woocommerce',
+		'.woocommerce-result-count',
+		'.woocommerce-ordering',
+		'ul.products',
+		'.woocommerce-pagination'
+	];
+
+	var busy = false;
+
+	function grid() {
+		for ( var i = 0; i < SWAP.length; i++ ) {
+			var found = document.querySelector( SWAP[ i ] );
+
+			if ( found ) {
+				return found;
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * Swaps in everything that differs, and tells the page it happened.
+	 */
+	function paint( html ) {
+		var incoming = document.implementation.createHTMLDocument( '' );
+
+		incoming.documentElement.innerHTML = html;
+
+		var swapped = false;
+
+		SWAP.forEach( function ( selector ) {
+			var here = document.querySelector( selector );
+			var there = incoming.querySelector( selector );
+
+			if ( ! here || ! there ) {
+				return;
+			}
+
+			// The first match that works is the whole region; once that is in,
+			// the narrower selectors would only put the same nodes back.
+			if ( swapped ) {
+				return;
+			}
+
+			here.replaceWith( there );
+			swapped = selector === SWAP[ 0 ];
+		} );
+
+		// The bar carries the active-filter chips and the number on the trigger.
+		// Its contents are replaced rather than the bar itself, because the bar
+		// is where the click handler lives.
+		var bar = document.querySelector( '.wcd-bar' );
+		var newBar = incoming.querySelector( '.wcd-bar' );
+
+		if ( bar && newBar ) {
+			bar.innerHTML = newBar.innerHTML;
+		}
+
+		// Counts beside each option, when the shop shows them.
+		var counts = document.querySelectorAll( '.wcd-opt__count' );
+		var newCounts = incoming.querySelectorAll( '.wcd-opt__count' );
+
+		if ( counts.length && counts.length === newCounts.length ) {
+			counts.forEach( function ( node, i ) {
+				node.textContent = newCounts[ i ].textContent;
+			} );
+		}
+
+		// Other scripts hang their work off these: lazy images, the badges
+		// plugin, our own countdowns. Without them the new cards arrive inert.
+		document.dispatchEvent( new CustomEvent( 'wcd:filtered', { bubbles: true } ) );
+
+		if ( window.jQuery ) {
+			window.jQuery( document.body ).trigger( 'wcd_filtered' );
+			window.jQuery( window ).trigger( 'resize' );
+		}
+	}
+
+	/**
+	 * Fetches a URL and shows it, leaving the address bar and history correct.
+	 *
+	 * @param {string}  url    Where to go.
+	 * @param {boolean} push   Whether this is a new step in the history.
+	 */
+	function go( url, push ) {
+		var target = grid();
+
+		// With nothing recognisable to replace, the ordinary navigation is not
+		// a failure — it is the fallback working.
+		if ( ! target || ! window.fetch || ! window.history || ! window.history.pushState ) {
+			window.location.href = url;
+
+			return;
+		}
+
+		if ( busy ) {
+			return;
+		}
+
+		busy = true;
+		target.classList.add( 'wcd-loading' );
+
+		fetch( url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } } )
+			.then( function ( response ) {
+				if ( ! response.ok ) {
+					throw new Error( response.status );
+				}
+
+				return response.text();
+			} )
+			.then( function ( html ) {
+				paint( html );
+
+				if ( push ) {
+					window.history.pushState( { wcd: true }, '', url );
+				}
+
+				var top = grid();
+
+				if ( top ) {
+					var y = top.getBoundingClientRect().top + window.pageYOffset - 100;
+
+					window.scrollTo( { top: y < 0 ? 0 : y, behavior: 'smooth' } );
+				}
+			} )
+			.catch( function () {
+				// A failed fetch should not leave the shopper stranded on a
+				// page that ignored their click.
+				window.location.href = url;
+			} )
+			.then( function () {
+				busy = false;
+
+				var now = grid();
+
+				if ( now ) {
+					now.classList.remove( 'wcd-loading' );
+				}
+			} );
+	}
+
+	// Paging and the chips are links inside the swapped region, so they are
+	// caught here rather than bound to nodes that get replaced.
+	document.addEventListener( 'click', function ( event ) {
+		if ( event.metaKey || event.ctrlKey || event.shiftKey || event.which > 1 ) {
+			return;
+		}
+
+		var link = event.target.closest(
+			'.woocommerce-pagination a, .wcd-chips a, .wcd-chip, .wcd-btn--ghost'
+		);
+
+		if ( ! link || ! link.href ) {
+			return;
+		}
+
+		event.preventDefault();
+		go( link.href, true );
+	} );
+
+	window.addEventListener( 'popstate', function () {
+		go( window.location.href, false );
+	} );
+
 	function setup( root ) {
 		root.classList.add( 'wcd-js' );
 
@@ -413,7 +594,7 @@
 		if ( form ) {
 			form.addEventListener( 'submit', function ( event ) {
 				event.preventDefault();
-				window.location.href = buildUrl( scope, range );
+				go( buildUrl( scope, range ), true );
 			} );
 		}
 
@@ -434,7 +615,12 @@
 
 			if ( event.target.closest( '[data-wcd-apply]' ) ) {
 				event.preventDefault();
-				window.location.href = buildUrl( scope, range );
+
+				if ( isDrawer( root ) ) {
+					close( root, scope );
+				}
+
+				go( buildUrl( scope, range ), true );
 
 				return;
 			}
