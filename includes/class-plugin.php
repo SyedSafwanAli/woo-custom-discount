@@ -197,6 +197,15 @@ class Plugin {
 	private static function hook_maintenance(): void {
 		add_action( 'wcd_daily_maintenance', array( __CLASS__, 'run_maintenance' ) );
 		add_action( 'wcd_rule_ended', array( __CLASS__, 'run_maintenance' ) );
+
+		// Activation books this, but activation happens once and a schedule can go
+		// missing afterwards — a failed update, a migration, a restore from a
+		// backup taken while the plugin was off. Losing it is silent: prices stop
+		// following the calendar and nothing says so. Checking on each load costs
+		// one cached option read and cannot leave the site without it.
+		if ( ! wp_next_scheduled( 'wcd_daily_maintenance' ) ) {
+			wp_schedule_event( time() + HOUR_IN_SECONDS, 'daily', 'wcd_daily_maintenance' );
+		}
 	}
 
 	/**
