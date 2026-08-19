@@ -409,6 +409,125 @@ class Importer {
 	 * @param bool $enable Whether the created rules start switched on.
 	 * @return array<string,mixed> Summary of what was created.
 	 */
+	/**
+	 * What the shop added by hand to the batches a previous import created.
+	 *
+	 * An import rebuilds its batches from the expiry categories, and a rebuild
+	 * starts by deleting what it made last time. Anything put into those batches
+	 * afterwards — a product assigned by hand, the picture chosen for it, the
+	 * number left in stock — belongs to nobody in that story and used to go with
+	 * the deletion, silently, months of work at a time.
+	 *
+	 * It is gathered here before the deletion and put back after, matched by
+	 * expiry month, which is the one thing a rebuilt batch keeps.
+	 *
+	 * @return array<string,array<int,array<string,mixed>>> Month => product records.
+	 */
+	private static function hand_added(): array {
+		$from_categories = array();
+
+		foreach ( self::expiry_categories() as $category ) {
+			$from_categories[ $category['expiry_ym'] ] = $category['products'];
+		}
+
+		$kept = array();
+
+		foreach ( Rules::query( array( 'type' => Rules::TYPE_BATCH ) ) as $batch ) {
+			// Every batch, whatever made it. A rule's source says who created it,
+			// not who is about to delete it, and the shop has had batches from
+			// two different imports at once. Restoring onto a batch that was
+			// never deleted costs nothing — the product is already there — so
+			// the wider net is the safe one.
+			$month = (string) $batch['expiry_ym'];
+
+			if ( $month === '' ) {
+				continue;
+			}
+
+			// Only what the import would not put back on its own.
+			$extra = array_diff( $batch['products'], $from_categories[ $month ] ?? array() );
+
+			foreach ( $extra as $product_id ) {
+				$product_id = (int) $product_id;
+				$images     = Variations::images_for( $product_id );
+				$stock      = Variations::stock_for( $product_id );
+
+				$kept[ $month ][] = array(
+					'product' => $product_id,
+					'image'   => (int) ( $images[ (int) $batch['id'] ] ?? 0 ),
+					'stock'   => array_key_exists( (int) $batch['id'], $stock ) ? (int) $stock[ (int) $batch['id'] ] : null,
+				);
+			}
+		}
+
+		return $kept;
+	}
+
+	/**
+	 * How many assignments an import would be taking responsibility for.
+	 *
+	 * Shown before the button is pressed, because "this will delete work you did"
+	 * is not something to find out afterwards.
+	 */
+	public static function hand_added_count(): int {
+		$count = 0;
+
+		foreach ( self::hand_added() as $products ) {
+			$count += count( $products );
+		}
+
+		return $count;
+	}
+
+	/**
+	 * Puts the kept assignments back on the batch that now holds that month.
+	 *
+	 * @param array<string,array<int,array<string,mixed>>> $kept From hand_added().
+	 */
+	private static function restore( array $kept ): int {
+		if ( $kept === array() ) {
+			return 0;
+		}
+
+		$batches = array();
+
+		foreach ( Rules::query( array( 'type' => Rules::TYPE_BATCH ) ) as $batch ) {
+			if ( (string) $batch['expiry_ym'] !== '' ) {
+				$batches[ (string) $batch['expiry_ym'] ] = $batch;
+			}
+		}
+
+		$restored = 0;
+
+		foreach ( $kept as $month => $records ) {
+			if ( ! isset( $batches[ $month ] ) ) {
+				continue;
+			}
+
+			$batch_id = (int) $batches[ $month ]['id'];
+			$products = $batches[ $month ]['products'];
+
+			foreach ( $records as $record ) {
+				if ( ! in_array( (int) $record['product'], $products, true ) ) {
+					$products[] = (int) $record['product'];
+					++$restored;
+				}
+
+				if ( $record['image'] > 0 ) {
+					Variations::set_image( (int) $record['product'], $batch_id, (int) $record['image'] );
+				}
+
+				if ( $record['stock'] !== null ) {
+					Variations::set_stock( (int) $record['product'], $batch_id, (int) $record['stock'] );
+				}
+			}
+
+			Rules::update( $batch_id, array( 'products' => $products ) );
+		}
+
+		return $restored;
+	}
+
 	public static function run( bool $enable = true ): array {
 		$plan = self::dry_run();
 
@@ -418,6 +537,9 @@ class Importer {
 				'message' => __( 'The old plugin\'s rules table was not found, so there is nothing to import.', 'woo-custom-discount' ),
 			);
 		}
+
+		// Gathered before the delete, put back after it.
+		$kept = self::hand_added();
 
 		self::remove_previous_import();
 
@@ -490,6 +612,8 @@ class Importer {
 			}
 		}
 
+		$restored = self::restore( $kept );
+
 		Resolver::flush();
 
 		update_option( 'wcd_last_import', time(), false );
@@ -499,6 +623,7 @@ class Importer {
 			'campaigns' => $created_campaigns,
 			'batches'   => $created_batches,
 			'skipped'   => $skipped,
+			'restored'  => $restored,
 		);
 	}
 

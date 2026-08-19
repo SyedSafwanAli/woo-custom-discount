@@ -201,6 +201,30 @@ class Admin_Import {
 		$campaigns = array_filter( $plan['campaigns'], static fn( array $c ): bool => ! $c['skipped'] );
 		$skipped   = count( $plan['campaigns'] ) - count( $campaigns );
 
+		// Importing rebuilds the batches, and a rebuild starts by deleting the
+		// ones it made last time. Saying so before the button is pressed matters
+		// more the second time than the first.
+		$by_hand = Importer::hand_added_count();
+
+		if ( $by_hand > 0 ) {
+			echo '<div class="wcd-explainer"><p><strong>';
+			printf(
+				/* translators: %d: number of assignments. */
+				esc_html(
+					_n(
+						'You have put %d product into an expiry batch by hand.',
+						'You have put %d products into expiry batches by hand.',
+						$by_hand,
+						'woo-custom-discount'
+					)
+				),
+				(int) $by_hand
+			);
+			echo '</strong></p><p>';
+			esc_html_e( 'Importing rebuilds the batches from your expiry categories, which means deleting the ones it made last time. Those assignments are kept and put back afterwards, along with the picture and the count each one carries. Nothing you did by hand is lost.', 'woo-custom-discount' );
+			echo '</p></div>';
+		}
+
 		echo '<p class="wcd-intro">';
 		esc_html_e( 'Your current discount rules are read once and copied into this plugin, so nothing has to be re-entered. Your expiry categories become real expiry batches with real dates.', 'woo-custom-discount' );
 		echo '</p>';
@@ -621,14 +645,26 @@ class Admin_Import {
 			Price_Engine::apply_all();
 		}
 
-		Admin::redirect_with_message(
-			'import',
-			sprintf(
-				/* translators: 1: campaigns created, 2: batches created. */
-				__( 'Imported %1$d campaigns and %2$d expiry batches. Check the price preview below before switching the engine on.', 'woo-custom-discount' ),
-				(int) $result['campaigns'],
-				(int) $result['batches']
-			)
+		$message = sprintf(
+			/* translators: 1: campaigns created, 2: batches created. */
+			__( 'Imported %1$d campaigns and %2$d expiry batches. Check the price preview below before switching the engine on.', 'woo-custom-discount' ),
+			(int) $result['campaigns'],
+			(int) $result['batches']
 		);
+
+		if ( ! empty( $result['restored'] ) ) {
+			$message .= ' ' . sprintf(
+				/* translators: %d: number of assignments. */
+				_n(
+					'%d assignment you had made by hand was put back.',
+					'%d assignments you had made by hand were put back.',
+					(int) $result['restored'],
+					'woo-custom-discount'
+				),
+				(int) $result['restored']
+			);
+		}
+
+		Admin::redirect_with_message( 'import', $message );
 	}
 }
