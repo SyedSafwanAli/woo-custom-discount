@@ -50,6 +50,10 @@ class Filter_Query {
 	 */
 	public static function init(): void {
 		add_action( 'woocommerce_product_query', array( __CLASS__, 'filter_main_query' ) );
+
+		// Late, so whatever another plugin does to the query has already been
+		// done by the time this looks at it.
+		add_action( 'pre_get_posts', array( __CLASS__, 'release_sort' ), 9999 );
 		add_filter( 'woocommerce_shortcode_products_query', array( __CLASS__, 'filter_shortcode_query' ) );
 		add_filter( 'query_vars', array( __CLASS__, 'register_query_vars' ) );
 
@@ -497,9 +501,53 @@ class Filter_Query {
 	 * @param \WP_Query $query Query to modify.
 	 */
 	private static function apply_sort( string $sort, $query ): void {
-		foreach ( self::sort_args( $sort ) as $key => $value ) {
+		$args = self::sort_args( $sort );
+
+		if ( $args === array() ) {
+			return;
+		}
+
+		foreach ( $args as $key => $value ) {
 			$query->set( $key, $value );
 		}
+
+		// Marked so it can be taken back off again. See release_sort().
+		if ( isset( $args['meta_key'] ) ) {
+			$query->set( 'wcd_sorted', 1 );
+		}
+	}
+
+	/**
+	 * Takes our sort back off a query that has stopped being a product query.
+	 *
+	 * Divi serves the shop page by rewriting the main query into a query for a
+	 * single page — and it clears meta_query while doing so, but not meta_key.
+	 * A sort left behind therefore asked page 5 for a meta value it has never
+	 * had, matched nothing, and turned the shop into a 404. The filters that use
+	 * meta_query were cleared along with everything else and so came through it
+	 * unharmed, which is why only sorting broke.
+	 *
+	 * Rather than guess at hook order, the sort is removed once the query has
+	 * settled into whatever it is going to be. The shop page keeps its ordering
+	 * anyway: on that page the products come from Divi's own module, whose query
+	 * is filtered separately and is not touched by any of this.
+	 *
+	 * @param \WP_Query $query The query about to run.
+	 */
+	public static function release_sort( $query ): void {
+		if ( ! $query->get( 'wcd_sorted' ) ) {
+			return;
+		}
+
+		$types = array_filter( (array) $query->get( 'post_type' ) );
+
+		if ( $types === array() || in_array( 'product', $types, true ) ) {
+			return;
+		}
+
+		$query->set( 'meta_key', '' );
+		$query->set( 'orderby', '' );
+		$query->set( 'wcd_sorted', 0 );
 	}
 
 	/**
