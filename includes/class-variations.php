@@ -863,14 +863,22 @@ class Variations {
 				? new \WC_Product_Variation( $existing[ $batch_id ] )
 				: new \WC_Product_Variation();
 
+			// discounted_price() answers 0 for "no discount", which is the right
+			// answer to the question and the wrong thing to write into a price.
+			// A batch on 0% records an expiry and leaves the price alone; passing
+			// that 0 straight through put the variation on sale at nothing.
+			$percent = (float) $batch['discount_percent'];
+			$sale    = $percent > 0 ? Price_Engine::discounted_price( $regular, $percent ) : 0.0;
+
 			$variation->set_parent_id( $product_id );
 			$variation->set_attributes( array( self::TAXONOMY => $term_object->slug ) );
 			$variation->set_regular_price( (string) $regular );
-			$variation->set_sale_price( (string) Price_Engine::discounted_price( $regular, (float) $batch['discount_percent'] ) );
+			$variation->set_sale_price( $sale > 0 ? (string) $sale : '' );
 
 			// The batch ends at the end of its month, and WooCommerce expires the
-			// sale price itself on that date.
-			$ends = Rules::expiry_end_timestamp( (string) $batch['expiry_ym'] );
+			// sale price itself on that date. With no sale there is nothing to
+			// expire, and a date left behind would be read against an empty price.
+			$ends = $sale > 0 ? Rules::expiry_end_timestamp( (string) $batch['expiry_ym'] ) : null;
 
 			$variation->set_date_on_sale_from( null );
 			$variation->set_date_on_sale_to( $ends ? (string) $ends : null );
