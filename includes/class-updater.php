@@ -20,11 +20,11 @@ defined( 'ABSPATH' ) || exit;
  * what changed. From then on it updates like any other plugin — a notice on the
  * Plugins screen, one click, done.
  *
- * The repository is private, so every request carries a token. The token is read
- * from a constant in wp-config.php and never written to the database, so it does
- * not travel in a database export and cannot be read by someone who only reaches
- * the admin screens. With no constant defined this class does nothing at all:
- * the plugin behaves exactly as it did, it simply never offers an update.
+ * No token is needed while the repository is public — GitHub hands out a public
+ * repository's releases to anyone who asks. A token is only for a repository that
+ * has been made private, and for the larger rate limit that comes with being
+ * recognised; it can be given in the settings, or as a constant in wp-config.php
+ * for a site that would rather keep it out of the database.
  */
 class Updater {
 
@@ -53,10 +53,6 @@ class Updater {
 	 * Hooks the update flow, but only where it can work.
 	 */
 	public static function init(): void {
-		if ( self::token() === '' ) {
-			return;
-		}
-
 		add_filter( 'pre_set_site_transient_update_plugins', array( __CLASS__, 'offer_update' ) );
 		add_filter( 'plugins_api', array( __CLASS__, 'details' ), 10, 3 );
 		add_filter( 'upgrader_pre_download', array( __CLASS__, 'download' ), 10, 3 );
@@ -64,13 +60,12 @@ class Updater {
 	}
 
 	/**
-	 * The token.
+	 * The token, if there is one. Empty is the ordinary case.
 	 *
 	 * Two places, in order. A constant in wp-config.php is the safer of the two —
 	 * it stays out of the database, so it does not travel in a database export —
-	 * but it means editing a file on the server, which is not a thing to ask for
-	 * every time. The settings field is the ordinary way: paste it once in the
-	 * admin and never touch a file.
+	 * but it means editing a file on the server. The settings field is the easier
+	 * one: paste it once in the admin and never touch a file.
 	 *
 	 * The constant wins where both exist, so a site already set up that way keeps
 	 * working and does not quietly start using a different token.
@@ -131,12 +126,7 @@ class Updater {
 			sprintf( 'https://api.github.com/repos/%s/%s/releases/latest', self::OWNER, self::REPO ),
 			array(
 				'timeout' => 10,
-				'headers' => array(
-					'Accept'               => 'application/vnd.github+json',
-					'Authorization'        => 'Bearer ' . self::token(),
-					'X-GitHub-Api-Version' => '2022-11-28',
-					'User-Agent'           => 'woo-custom-discount',
-				),
+				'headers' => self::headers( 'application/vnd.github+json' ),
 			)
 		);
 
@@ -180,6 +170,28 @@ class Updater {
 	}
 
 	/**
+	 * Request headers, with the token only when there is one.
+	 *
+	 * @param string $accept What to ask GitHub for.
+	 * @return array<string,string>
+	 */
+	private static function headers( string $accept ): array {
+		$headers = array(
+			'Accept'               => $accept,
+			'X-GitHub-Api-Version' => '2022-11-28',
+			'User-Agent'           => 'woo-custom-discount',
+		);
+
+		$token = self::token();
+
+		if ( $token !== '' ) {
+			$headers['Authorization'] = 'Bearer ' . $token;
+		}
+
+		return $headers;
+	}
+
+	/**
 	 * Keeps an answer and hands it straight back.
 	 *
 	 * @param array<string,mixed> $answer What was found, or why nothing was.
@@ -198,18 +210,10 @@ class Updater {
 	 * @return array{token:bool,version:string,error:string}
 	 */
 	public static function status(): array {
-		if ( self::token() === '' ) {
-			return array(
-				'token'   => false,
-				'version' => '',
-				'error'   => __( 'No token yet, so updates are never offered. Add one under Settings.', 'woo-custom-discount' ),
-			);
-		}
-
 		$found = self::look();
 
 		return array(
-			'token'   => true,
+			'token'   => self::token() !== '',
 			'version' => (string) ( $found['version'] ?? '' ),
 			'error'   => (string) ( $found['error'] ?? '' ),
 		);
@@ -347,13 +351,9 @@ class Updater {
 				'timeout'  => 300,
 				'stream'   => true,
 				'filename' => $file,
-				'headers'  => array(
-					// A release asset is the file itself only when asked for
-					// this way; otherwise GitHub answers with its JSON record.
-					'Accept'        => 'application/octet-stream',
-					'Authorization' => 'Bearer ' . self::token(),
-					'User-Agent'    => 'woo-custom-discount',
-				),
+				// A release asset is the file itself only when asked for this
+				// way; otherwise GitHub answers with its JSON record.
+				'headers'  => self::headers( 'application/octet-stream' ),
 			)
 		);
 

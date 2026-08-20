@@ -294,10 +294,10 @@ class Admin {
 		self::row( __( 'Sale prices we own', 'woo-custom-discount' ), (string) $owned, null );
 		self::row( __( 'Site timezone', 'woo-custom-discount' ), self::timezone_label(), null );
 
-		// Updates come from a private repository, so there are several ways for
-		// them to go quiet — no token, a token that cannot read the repository,
-		// no release published. Silence looks identical in every case, so the
-		// reason is put on the screen rather than left to be guessed at.
+		// There are several ways for updates to go quiet — no release published,
+		// a repository gone private without a token, a token that has expired,
+		// no network. Silence looks identical in every case, so the reason is put
+		// on the screen rather than left to be guessed at.
 		$updates = Updater::status();
 
 		if ( $updates['error'] !== '' ) {

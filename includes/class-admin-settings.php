@@ -200,11 +200,11 @@ class Admin_Settings {
 			);
 
 			echo '<p class="description">';
-			esc_html_e( 'Without this the plugin never checks for updates and never offers one. It lives in a private repository, so it has to identify itself.', 'woo-custom-discount' );
+			esc_html_e( 'Optional. Updates work without it while the repository is public. Fill this in only if it is made private, or to raise the limit on how often this site may ask GitHub.', 'woo-custom-discount' );
 			echo '</p>';
 
 			echo '<p class="description">';
-			esc_html_e( 'Use a token that can only read, and only this one repository. It is kept in the database, so it travels in a database export — a token that can read a little is a small thing to lose; one that can write is not.', 'woo-custom-discount' );
+			esc_html_e( 'If you do use one: let it read, and only this one repository. It is kept in the database, so it travels in a database export — a token that can read a little is a small thing to lose; one that can write is not.', 'woo-custom-discount' );
 			echo '</p>';
 		}
 
