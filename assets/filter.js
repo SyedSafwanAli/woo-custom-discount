@@ -497,8 +497,10 @@
 	 * @param {string}  url    Where to go.
 	 * @param {boolean} push   Whether this is a new step in the history.
 	 */
-	function go( url, push ) {
+	function go( url, push, hooks ) {
 		var target = grid();
+
+		hooks = hooks || {};
 
 		// With nothing recognisable to replace, the ordinary navigation is not
 		// a failure — it is the fallback working.
@@ -515,6 +517,10 @@
 		busy = true;
 		target.classList.add( 'wcd-loading' );
 
+		if ( hooks.start ) {
+			hooks.start();
+		}
+
 		fetch( url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } } )
 			.then( function ( response ) {
 				if ( ! response.ok ) {
@@ -524,10 +530,18 @@
 				return response.text();
 			} )
 			.then( function ( html ) {
-				paint( html );
-
+				// The address bar goes first. The panel is put back in step by
+				// reading it, so painting before this left the drawer agreeing
+				// with the page that was just navigated away from — a filter
+				// removed from a chip stayed ticked inside.
 				if ( push ) {
 					window.history.pushState( { wcd: true }, '', url );
+				}
+
+				paint( html );
+
+				if ( hooks.done ) {
+					hooks.done();
 				}
 
 				var top = grid();
@@ -622,6 +636,28 @@
 		refreshApply( scope, range );
 	}
 
+	/**
+	 * Puts the Apply button into, or out of, its waiting state.
+	 *
+	 * The results take as long as a page load, because a page is what is being
+	 * fetched. Closing the drawer on the click and leaving the old results
+	 * underneath made that gap look like nothing had happened.
+	 */
+	function applying( scope, on ) {
+		var button = scope.querySelector( '[data-wcd-apply]' );
+
+		if ( ! button ) {
+			return;
+		}
+
+		button.disabled = on;
+		button.classList.toggle( 'is-applying', on );
+
+		if ( on ) {
+			button.textContent = config.strings.applying || 'Applying…';
+		}
+	}
+
 	function setup( root ) {
 		root.classList.add( 'wcd-js' );
 
@@ -665,11 +701,21 @@
 			if ( event.target.closest( '[data-wcd-apply]' ) ) {
 				event.preventDefault();
 
-				if ( isDrawer( root ) ) {
-					close( root, scope );
-				}
+				// The drawer stays open until the results are actually here, so
+				// the shopper is never left looking at the old ones wondering
+				// whether the button worked.
+				go( buildUrl( scope, range ), true, {
+					start: function () {
+						applying( scope, true );
+					},
+					done: function () {
+						applying( scope, false );
 
-				go( buildUrl( scope, range ), true );
+						if ( isDrawer( root ) ) {
+							close( root, scope );
+						}
+					}
+				} );
 
 				return;
 			}

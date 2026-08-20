@@ -791,3 +791,40 @@ html.wcd-locked body {
 .wcd-loading {
 	cursor: progress;
 }
+
+/* The Apply button while the next set of results is being fetched. */
+.wcd-apply.is-applying,
+[data-wcd-apply].is-applying {
+	position: relative;
+	opacity: 0.75;
+	cursor: progress;
+	padding-left: 2.6em;
+}
+
+/* A small turning ring, on the button itself rather than over the results —
+   the wait belongs to the thing that was pressed. */
+.wcd-apply.is-applying::before,
+[data-wcd-apply].is-applying::before {
+	content: "";
+	position: absolute;
+	top: 50%;
+	left: 1.1em;
+	width: 1em;
+	height: 1em;
+	margin-top: -0.5em;
+	border: 2px solid rgba( 255, 255, 255, 0.4 );
+	border-top-color: #fff;
+	border-radius: 50%;
+	animation: wcd-spin 0.7s linear infinite;
+}
+
+@keyframes wcd-spin {
+	to { transform: rotate( 360deg ); }
+}
+
+@media ( prefers-reduced-motion: reduce ) {
+	.wcd-apply.is-applying::before,
+	[data-wcd-apply].is-applying::before {
+		animation-duration: 2.5s;
+	}
+}

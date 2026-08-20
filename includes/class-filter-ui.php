@@ -76,6 +76,7 @@ class Filter_UI {
 					'applyCount' => __( 'Apply %d filters', 'woo-custom-discount' ),
 					'applyOne'   => __( 'Apply 1 filter', 'woo-custom-discount' ),
 					'showAll'    => __( 'Show all products', 'woo-custom-discount' ),
+					'applying'   => __( 'Applying…', 'woo-custom-discount' ),
 				),
 			)
 		);
