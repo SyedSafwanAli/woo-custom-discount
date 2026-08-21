@@ -807,14 +807,18 @@ class Variations {
 
 		$product->set_attributes( $attributes );
 
-		// Land on the soonest expiry already chosen. An unchosen chooser leaves
-		// the add-to-cart button disabled and no price on the page, so the first
-		// thing a shopper meets is a dead button — and the soonest date is the
-		// one being cleared out, so it is the right one to lead with. Setting it
-		// here rather than in the browser means it holds with scripts off.
-		$product->set_default_attributes(
-			array( self::TAXONOMY => 'wcd-b' . (int) $batches[0]['id'] )
-		);
+		// Nothing chosen to begin with.
+		//
+		// This used to land on the soonest expiry, so that the page opened with a
+		// live price and a working button rather than a dead one. But choosing
+		// for the shopper decides which stock they are buying before they have
+		// looked, and it makes the price above the chooser a lie the moment the
+		// page loads: the range says two prices are available while the product
+		// has already been narrowed to one.
+		//
+		// Unchosen is the truthful state. The range stands until the shopper
+		// picks, and picking is what a variable product asks of them anyway.
+		$product->set_default_attributes( array() );
 
 		$product->save();
 	}
