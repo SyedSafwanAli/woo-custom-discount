@@ -61,6 +61,52 @@
 		sync( form );
 	}
 
+
+	/**
+	 * The price shown above the chooser.
+	 *
+	 * On a variable product WooCommerce prints a range there — "Rs 2,697 –
+	 * Rs 4,495" — because until an expiry is picked, that really is the answer.
+	 * Once one is picked the variation prints its own price just below, and the
+	 * range above stops being true: it goes on offering a spread when the
+	 * shopper has already narrowed it to one number.
+	 *
+	 * Found by looking for the price that is not inside the form, since the
+	 * variation's own price is.
+	 */
+	function rangeOf( form ) {
+		var found = form.data( 'wcdRange' );
+
+		if ( found ) {
+			return found;
+		}
+
+		var scope = form.closest( '.product' );
+
+		if ( ! scope.length ) {
+			scope = $( 'body' );
+		}
+
+		// Divi's Theme Builder prints the variation's own price outside the
+		// form, not inside it, so "not in the form" is not enough on its own to
+		// tell the two apart.
+		var range = scope.find( '.price' ).filter( function () {
+			var el = $( this );
+
+			return el.closest( 'form.variations_form' ).length === 0
+				&& el.closest( '.woocommerce-variation-price' ).length === 0
+				&& el.closest( '.wcd-choice, .wcd-swatches' ).length === 0;
+		} ).first();
+
+		form.data( 'wcdRange', range );
+
+		return range;
+	}
+
+	function showRange( form, on ) {
+		rangeOf( form ).toggleClass( 'wcd-range-hidden', ! on );
+	}
+
 	$( document ).on( 'click', '.wcd-choice__row', function ( event ) {
 		event.preventDefault();
 		choose( $( this ) );
@@ -76,6 +122,16 @@
 
 	$( document ).on( 'woocommerce_update_variation_values found_variation reset_data show_variation', 'form.variations_form', function () {
 		sync( $( this ) );
+	} );
+
+	// One expiry chosen: the range above has been answered, so it goes.
+	$( document ).on( 'show_variation', 'form.variations_form', function () {
+		showRange( $( this ), false );
+	} );
+
+	// Cleared again — the range is the honest answer once more.
+	$( document ).on( 'hide_variation reset_data', 'form.variations_form', function () {
+		showRange( $( this ), true );
 	} );
 
 	$( function () {

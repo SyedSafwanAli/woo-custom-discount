@@ -285,3 +285,12 @@
 	color: #6b7280;
 	text-align: left;
 }
+
+/* The range above the chooser, once an expiry has been picked.
+
+   Hidden rather than removed: WooCommerce and the theme both write into this
+   element, and taking it out of the page would break the next thing that looks
+   for it. */
+.wcd-range-hidden {
+	display: none !important;
+}
