@@ -104,7 +104,21 @@ class Resolver {
 			);
 		}
 
-		// --- 2, 3, 4. Campaigns, most specific first -------------------------
+		return self::campaign_for( $product_id );
+	}
+
+	/**
+	 * The campaign that would cover a product, ignoring any batch it sits in.
+	 *
+	 * resolve() stops at the batch and never looks this far, which is right for
+	 * pricing a product that has one. It is not right for a product offering
+	 * several batches as a choice: there the campaign stands beside them as
+	 * another thing the shopper can pick, so it has to be findable on its own.
+	 *
+	 * @return array<string,mixed>|null
+	 */
+	public static function campaign_for( int $product_id ): ?array {
+		// --- Campaigns, most specific first ----------------------------------
 		$term_ids = self::product_term_ids( $product_id );
 
 		$levels = array(

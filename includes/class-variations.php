@@ -247,6 +247,32 @@ class Variations {
 	 * @param int   $item_id Order item ID.
 	 * @param mixed $item    Order item.
 	 */
+	/**
+	 * Reads the marker a variation carries, as kind and id.
+	 *
+	 * Older variations were stamped with a bare batch id. Those are still out
+	 * there on live orders and in the database, so a plain number is read as the
+	 * batch it has always been.
+	 *
+	 * @return array{kind:string,id:int}|null
+	 */
+	private static function read_marker( int $variation_id ): ?array {
+		$raw = (string) get_post_meta( $variation_id, self::META_BATCH, true );
+
+		if ( '' === $raw ) {
+			return null;
+		}
+
+		if ( preg_match( '/^([bc])(\d+)$/', $raw, $m ) ) {
+			return array(
+				'kind' => 'b' === $m[1] ? 'batch' : 'campaign',
+				'id'   => (int) $m[2],
+			);
+		}
+
+		return ctype_digit( $raw ) ? array( 'kind' => 'batch', 'id' => (int) $raw ) : null;
+	}
+
 	public static function stamp_order_item( $item_id, $item ): void {
 		if ( ! $item instanceof \WC_Order_Item_Product ) {
 			return;
@@ -258,21 +284,25 @@ class Variations {
 			return;
 		}
 
-		$batch_id = (int) get_post_meta( $variation_id, self::META_BATCH, true );
+		$marker = self::read_marker( $variation_id );
 
-		if ( ! $batch_id ) {
+		if ( $marker === null ) {
 			return;
 		}
 
-		$batch = Rules::get( $batch_id );
+		$batch = Rules::get( $marker['id'] );
 
 		if ( ! $batch ) {
 			return;
 		}
 
-		$month = ! empty( $batch['expiry_ym'] )
-			? Importer::format_expiry( (string) $batch['expiry_ym'] )
-			: (string) $batch['title'];
+		// A campaign line has no expiry to record. Its own name is what the order
+		// should say, so the shop can see later which offer it was sold under.
+		$month = 'campaign' === $marker['kind']
+			? (string) $batch['title']
+			: ( ! empty( $batch['expiry_ym'] )
+				? Importer::format_expiry( (string) $batch['expiry_ym'] )
+				: (string) $batch['title'] );
 
 		$percent = (float) $batch['discount_percent'];
 
@@ -317,11 +347,15 @@ class Variations {
 		}
 
 		$variation_id = $variation->get_id();
-		$batch_id     = (int) get_post_meta( $variation_id, self::META_BATCH, true );
+		$marker       = self::read_marker( $variation_id );
 
-		if ( ! $batch_id ) {
+		// Only a batch keeps a count of its own. The campaign line sells against
+		// the product's ordinary stock, so there is nothing here to write back.
+		if ( $marker === null || 'batch' !== $marker['kind'] ) {
 			return;
 		}
+
+		$batch_id = $marker['id'];
 
 		$product_id = $variation->get_parent_id();
 
@@ -467,6 +501,56 @@ class Variations {
 	/**
 	 * Whether this product should be offering a choice.
 	 */
+	/**
+	 * Everything a shopper may choose between on this product.
+	 *
+	 * The batches, and — where there are two or more of them — the campaign that
+	 * would otherwise have been hidden behind them. The shop asked for the
+	 * ordinary discount to stand beside the dated stock rather than be replaced
+	 * by it, so someone who does not want a short-dated bottle can still buy the
+	 * product at the campaign price.
+	 *
+	 * A product in a single batch is left alone. There the batch is simply what
+	 * that product costs, and turning it into a two-way choice would convert a
+	 * great many simple products for no gain.
+	 *
+	 * @return array<int,array<string,mixed>> Each: kind, rule, percent.
+	 */
+	public static function options_for( int $product_id ): array {
+		$batches = self::batches_for( $product_id );
+
+		if ( count( $batches ) < 2 ) {
+			return array();
+		}
+
+		$options = array();
+
+		foreach ( $batches as $batch ) {
+			$options[] = array(
+				'kind'    => 'batch',
+				'rule'    => $batch,
+				'percent' => (float) $batch['discount_percent'],
+			);
+		}
+
+		$campaign = Resolver::campaign_for( $product_id );
+
+		if ( $campaign !== null ) {
+			$rule = Rules::get( (int) $campaign['rule_id'] );
+
+			if ( $rule ) {
+				$options[] = array(
+					'kind'    => 'campaign',
+					'rule'    => $rule,
+					'percent' => (float) $campaign['percent'],
+					'ends_at' => $campaign['ends_at'],
+				);
+			}
+		}
+
+		return $options;
+	}
+
 	public static function should_be_variable( int $product_id ): bool {
 		return self::enabled() && count( self::batches_for( $product_id ) ) >= 2;
 	}
@@ -539,8 +623,10 @@ class Variations {
 		wp_set_object_terms( $product_id, 'variable', 'product_type' );
 		self::refresh( $product_id );
 
-		self::apply_attribute( $product_id, $batches );
-		self::apply_variations( $product_id, $batches, $regular );
+		$options = self::options_for( $product_id );
+
+		self::apply_attribute( $product_id, $options );
+		self::apply_variations( $product_id, $options, $regular );
 
 		self::refresh( $product_id );
 
@@ -765,7 +851,7 @@ class Variations {
 	 *
 	 * @param array<int,array<string,mixed>> $batches Batches to offer.
 	 */
-	private static function apply_attribute( int $product_id, array $batches ): void {
+	private static function apply_attribute( int $product_id, array $options ): void {
 		$attribute_id = self::ensure_taxonomy();
 
 		if ( ! $attribute_id ) {
@@ -774,8 +860,8 @@ class Variations {
 
 		$term_ids = array();
 
-		foreach ( $batches as $batch ) {
-			$term_id = self::ensure_term( $batch );
+		foreach ( $options as $option ) {
+			$term_id = self::ensure_term( $option );
 
 			if ( $term_id ) {
 				$term_ids[] = $term_id;
@@ -828,18 +914,26 @@ class Variations {
 	 *
 	 * @param array<int,array<string,mixed>> $batches Batches to offer.
 	 */
-	private static function apply_variations( int $product_id, array $batches, float $regular ): void {
+	private static function apply_variations( int $product_id, array $options, float $regular ): void {
 		$images   = self::images_for( $product_id );
 		$stock    = self::stock_for( $product_id );
 		$existing = array();
 
 		foreach ( self::our_variations( $product_id ) as $variation_id ) {
-			$batch_id = (int) get_post_meta( $variation_id, self::META_BATCH, true );
+			$marker = (string) get_post_meta( $variation_id, self::META_BATCH, true );
 
-			// Two variations for one batch should not happen; if it does, the
+			// Variations built before campaigns joined the choice carry a bare
+			// batch id. Read as-is they would not match the new marker and every
+			// one of them would be rebuilt from scratch, losing its id and with
+			// it anything WooCommerce had hung off that id.
+			if ( ctype_digit( $marker ) ) {
+				$marker = 'b' . $marker;
+			}
+
+			// Two variations for one option should not happen; if it does, the
 			// spare goes rather than being left to confuse the picker.
-			if ( $batch_id && ! isset( $existing[ $batch_id ] ) ) {
-				$existing[ $batch_id ] = $variation_id;
+			if ( '' !== $marker && ! isset( $existing[ $marker ] ) ) {
+				$existing[ $marker ] = $variation_id;
 			} else {
 				wp_delete_post( $variation_id, true );
 			}
@@ -847,11 +941,17 @@ class Variations {
 
 		$keep = array();
 
-		foreach ( $batches as $index => $batch ) {
-			$batch_id = (int) $batch['id'];
-			$keep[]   = $batch_id;
+		foreach ( $options as $index => $option ) {
+			$rule       = $option['rule'];
+			$is_campaign = ( $option['kind'] ?? 'batch' ) === 'campaign';
 
-			$term = self::ensure_term( $batch );
+			// Batches and campaigns share one id sequence, so the marker carries
+			// the letter as well and the two cannot be mistaken for each other.
+			$batch_id = (int) $rule['id'];
+			$marker   = ( $is_campaign ? 'c' : 'b' ) . $batch_id;
+			$keep[]   = $marker;
+
+			$term = self::ensure_term( $option );
 
 			if ( ! $term ) {
 				continue;
@@ -863,15 +963,15 @@ class Variations {
 				continue;
 			}
 
-			$variation = isset( $existing[ $batch_id ] )
-				? new \WC_Product_Variation( $existing[ $batch_id ] )
+			$variation = isset( $existing[ $marker ] )
+				? new \WC_Product_Variation( $existing[ $marker ] )
 				: new \WC_Product_Variation();
 
 			// discounted_price() answers 0 for "no discount", which is the right
 			// answer to the question and the wrong thing to write into a price.
 			// A batch on 0% records an expiry and leaves the price alone; passing
 			// that 0 straight through put the variation on sale at nothing.
-			$percent = (float) $batch['discount_percent'];
+			$percent = (float) $option['percent'];
 			$sale    = $percent > 0 ? Price_Engine::discounted_price( $regular, $percent ) : 0.0;
 
 			$variation->set_parent_id( $product_id );
@@ -879,10 +979,17 @@ class Variations {
 			$variation->set_regular_price( (string) $regular );
 			$variation->set_sale_price( $sale > 0 ? (string) $sale : '' );
 
-			// The batch ends at the end of its month, and WooCommerce expires the
-			// sale price itself on that date. With no sale there is nothing to
-			// expire, and a date left behind would be read against an empty price.
-			$ends = $sale > 0 ? Rules::expiry_end_timestamp( (string) $batch['expiry_ym'] ) : null;
+			// A batch ends at the end of its month; a campaign ends when it was
+			// told to, or not at all. Either way WooCommerce expires the sale
+			// price itself on that date. With no sale there is nothing to expire,
+			// and a date left behind would be read against an empty price.
+			if ( $sale <= 0 ) {
+				$ends = null;
+			} elseif ( $is_campaign ) {
+				$ends = $option['ends_at'] ?? null;
+			} else {
+				$ends = Rules::expiry_end_timestamp( (string) $rule['expiry_ym'] );
+			}
 
 			$variation->set_date_on_sale_from( null );
 			$variation->set_date_on_sale_to( $ends ? (string) $ends : null );
@@ -890,14 +997,21 @@ class Variations {
 			// A batch with its own picture gets it; one without falls back to the
 			// product's, which is what WooCommerce does with an empty image id.
 			// Set every time, so clearing a picture takes effect as surely as
-			// choosing one.
-			$variation->set_image_id( isset( $images[ $batch_id ] ) ? (string) $images[ $batch_id ] : '' );
+			// choosing one. The campaign has no picture of its own — it is not a
+			// separate lot of stock, just the ordinary price.
+			$variation->set_image_id(
+				! $is_campaign && isset( $images[ $batch_id ] ) ? (string) $images[ $batch_id ] : ''
+			);
 
 			// A batch given a number counts down on its own; one without sells
 			// against the product's stock, as every batch did before this. Once
 			// the variation is managing its own, WooCommerce takes each sale off
 			// it without anything here being involved.
-			if ( isset( $stock[ $batch_id ] ) ) {
+			//
+			// The campaign never counts separately. It stands for the product's
+			// ordinary stock rather than a lot of its own, so a number here would
+			// be a second, competing tally of the same shelf.
+			if ( ! $is_campaign && isset( $stock[ $batch_id ] ) ) {
 				$variation->set_manage_stock( true );
 				$variation->set_stock_quantity( $stock[ $batch_id ] );
 				$variation->set_backorders( 'no' );
@@ -911,12 +1025,14 @@ class Variations {
 
 			$variation_id = $variation->save();
 
-			update_post_meta( $variation_id, self::META_BATCH, (string) $batch_id );
+			update_post_meta( $variation_id, self::META_BATCH, $marker );
 		}
 
-		// Anything for a batch this product has left.
-		foreach ( $existing as $batch_id => $variation_id ) {
-			if ( ! in_array( (int) $batch_id, $keep, true ) ) {
+		// Anything for an option this product no longer offers. Compared as the
+		// markers they are: casting to int turned every one of them into 0, so
+		// nothing ever matched and each rebuild deleted the last one's work.
+		foreach ( $existing as $marker => $variation_id ) {
+			if ( ! in_array( (string) $marker, $keep, true ) ) {
 				wp_delete_post( $variation_id, true );
 			}
 		}
@@ -1000,20 +1116,31 @@ class Variations {
 	}
 
 	/**
-	 * The term standing for one batch, created if need be.
+	 * The term standing for one option, created if need be.
 	 *
-	 * The slug is tied to the batch id rather than the month, so renaming a
-	 * batch or moving its date does not orphan every variation using it.
+	 * The slug is tied to the rule's id rather than to its month or title, so
+	 * renaming a batch or moving its date does not orphan every variation using
+	 * it. Batches and campaigns are told apart by the letter, since the two share
+	 * one id sequence and would otherwise collide.
 	 *
-	 * @param array<string,mixed> $batch Batch data.
+	 * @param array<string,mixed> $option From options_for(): kind and rule.
 	 */
-	private static function ensure_term( array $batch ): int {
+	private static function ensure_term( array $option ): int {
 		self::register_taxonomy_now();
 
-		$slug  = 'wcd-b' . (int) $batch['id'];
-		$label = $batch['expiry_ym']
-			? Importer::format_expiry( (string) $batch['expiry_ym'] )
-			: (string) $batch['title'];
+		$rule = $option['rule'];
+
+		if ( ( $option['kind'] ?? 'batch' ) === 'campaign' ) {
+			// The campaign is named, not dated — its own title is the only thing
+			// that would mean anything to a shopper reading the choice.
+			$slug  = 'wcd-c' . (int) $rule['id'];
+			$label = (string) $rule['title'];
+		} else {
+			$slug  = 'wcd-b' . (int) $rule['id'];
+			$label = $rule['expiry_ym']
+				? Importer::format_expiry( (string) $rule['expiry_ym'] )
+				: (string) $rule['title'];
+		}
 
 		$term = get_term_by( 'slug', $slug, self::TAXONOMY );
 
