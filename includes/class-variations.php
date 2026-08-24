@@ -1271,7 +1271,11 @@ class Variations {
 	 * is renamed or its month moved.
 	 */
 	private static function percent_for_slug( string $slug ): float {
-		if ( ! preg_match( '/^wcd-b(\d+)$/', $slug, $m ) ) {
+		// Batch or campaign — both are rules with a percentage, and the shopper
+		// weighing them up wants to see it on either. Reading only the batches
+		// left the campaign row as the one choice that would not say what it
+		// took off.
+		if ( ! preg_match( '/^wcd-[bc](\d+)$/', $slug, $m ) ) {
 			return 0.0;
 		}
 
