@@ -26,8 +26,10 @@ defined( 'ABSPATH' ) || exit;
  *
  * Two rules bound what this touches:
  *
- *  1. Only products in two or more live batches are converted. One batch is one
- *     price, and stays a simple product.
+ *  1. Only products with two or more things to choose between are converted —
+ *     counted across the batches and the campaign together, since one batch and
+ *     a campaign is as much a choice as two batches are. A product with nothing
+ *     to weigh up stays a simple product.
  *  2. Only products this class converted are ever converted back. Anything the
  *     shop made variable itself carries no marker and is left alone.
  */
@@ -504,22 +506,25 @@ class Variations {
 	/**
 	 * Everything a shopper may choose between on this product.
 	 *
-	 * The batches, and — where there are two or more of them — the campaign that
-	 * would otherwise have been hidden behind them. The shop asked for the
-	 * ordinary discount to stand beside the dated stock rather than be replaced
-	 * by it, so someone who does not want a short-dated bottle can still buy the
-	 * product at the campaign price.
+	 * The batches, and the campaign that covers the product, side by side.
 	 *
-	 * A product in a single batch is left alone. There the batch is simply what
-	 * that product costs, and turning it into a two-way choice would convert a
-	 * great many simple products for no gain.
+	 * There is no precedence between them any more. A campaign shows unless the
+	 * product has been taken out of it on purpose — being in a batch is not that
+	 * purpose. The two answer different questions: the batch is what the
+	 * short-dated stock costs, the campaign is what the ordinary stock costs, and
+	 * a shopper is entitled to both.
+	 *
+	 * That includes a product in a single batch. Under the old rule such a
+	 * product had one option, so no chooser, so the campaign it qualified for
+	 * never appeared — and where the batch sat at 0% the shopper was quoted full
+	 * price for something the shop was running an offer on.
 	 *
 	 * @return array<int,array<string,mixed>> Each: kind, rule, percent.
 	 */
 	public static function options_for( int $product_id ): array {
 		$batches = self::batches_for( $product_id );
 
-		if ( count( $batches ) < 2 ) {
+		if ( $batches === array() ) {
 			return array();
 		}
 
@@ -552,7 +557,10 @@ class Variations {
 	}
 
 	public static function should_be_variable( int $product_id ): bool {
-		return self::enabled() && count( self::batches_for( $product_id ) ) >= 2;
+		// Counted in options rather than batches: one batch and a campaign is
+		// two things to choose between, and needs a chooser just as much as two
+		// batches do.
+		return self::enabled() && count( self::options_for( $product_id ) ) >= 2;
 	}
 
 	/**
@@ -585,9 +593,9 @@ class Variations {
 	 * The actual work, with the re-entrancy guard already held.
 	 */
 	private static function sync_product_inner( int $product_id ): string {
-		$batches = self::batches_for( $product_id );
+		$options = self::options_for( $product_id );
 
-		if ( ! self::enabled() || count( $batches ) < 2 ) {
+		if ( ! self::enabled() || count( $options ) < 2 ) {
 			return self::owns( $product_id ) ? self::revert( $product_id ) : 'skipped';
 		}
 
@@ -622,8 +630,6 @@ class Variations {
 		// warnings were coming from.
 		wp_set_object_terms( $product_id, 'variable', 'product_type' );
 		self::refresh( $product_id );
-
-		$options = self::options_for( $product_id );
 
 		self::apply_attribute( $product_id, $options );
 		self::apply_variations( $product_id, $options, $regular );
