@@ -64,8 +64,8 @@ class Admin_Settings {
 		self::toggle(
 			'batch_variations',
 			__( 'Let shoppers choose the expiry', 'woo-custom-discount' ),
-			__( 'On products held in two or more batches, show the dates as buttons', 'woo-custom-discount' ),
-			__( 'Those products become variable products, with one variation per batch, so WooCommerce handles the choice, the price, the order line and the stock. Products in one batch are untouched. Switching this off converts them all back.', 'woo-custom-discount' )
+			__( 'Where a product has more than one price, show them as buttons', 'woo-custom-discount' ),
+			__( 'A product in two or more batches, or in one batch while a campaign also covers it, has more than one price and is shown as a choice — one variation per batch, plus one for the campaign. WooCommerce then handles the choice, the price, the order line and the stock. With this off, such a product falls back to a single price and the batch takes it. Switching it off converts them all back.', 'woo-custom-discount' )
 		);
 
 		self::toggle(
