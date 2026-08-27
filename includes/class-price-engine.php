@@ -365,15 +365,20 @@ class Price_Engine {
 	/**
 	 * Stores the discount the filters read, for a product priced by variations.
 	 *
-	 * The best of its batches, because that is the figure a shopper filtering
-	 * for "60% off" is looking for — the product does have it, on one of its
-	 * dates.
+	 * The best of everything it offers, because that is the figure a shopper
+	 * filtering for "60% off" is looking for — the product does have it, on one
+	 * of its choices.
+	 *
+	 * Batches alone were read here once, from when a batch was the only thing a
+	 * variation could stand for. A product whose only discount is a campaign was
+	 * then recorded as having none, and dropped out of the discount filter and
+	 * out of sorting by discount, while its page plainly showed the offer.
 	 */
 	private static function record_percent( int $product_id ): void {
 		$best = 0.0;
 
-		foreach ( Variations::batches_for( $product_id ) as $batch ) {
-			$best = max( $best, (float) $batch['discount_percent'] );
+		foreach ( Variations::options_for( $product_id ) as $option ) {
+			$best = max( $best, (float) $option['percent'] );
 		}
 
 		if ( $best > 0 ) {
