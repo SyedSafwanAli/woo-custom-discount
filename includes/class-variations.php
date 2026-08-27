@@ -225,6 +225,9 @@ class Variations {
 		// And the price gets the figure it is discounted from.
 		add_filter( 'woocommerce_get_price_html', array( __CLASS__, 'price_html' ), 10, 2 );
 
+		// An offer that moves no price still has something to say up there.
+		add_filter( 'woocommerce_available_variation', array( __CLASS__, 'variation_data' ), 10, 3 );
+
 		// Every sale takes one off the batch it came from.
 		add_action( 'woocommerce_variation_set_stock', array( __CLASS__, 'on_variation_stock' ) );
 
@@ -470,6 +473,51 @@ class Variations {
 			. '<span class="screen-reader-text">'
 			. esc_html__( 'Current price is:', 'woo-custom-discount' ) . ' ' . wp_strip_all_tags( $now )
 			. '</span>';
+	}
+
+	/**
+	 * Says what the chosen option gives, beside its price.
+	 *
+	 * WooCommerce prints a struck-through price and a lower one, which tells the
+	 * whole story for a discount and none of it for an offer that leaves the
+	 * price alone. Choosing "Buy One Get One Free" replaced that pair with a
+	 * single unremarkable figure, and the shopper had nothing to read but the
+	 * price they were already looking at.
+	 *
+	 * So whatever the option says in the list it says here too, once chosen.
+	 *
+	 * @param array<string,mixed>   $data      Variation data WooCommerce built.
+	 * @param \WC_Product           $product   The parent.
+	 * @param \WC_Product_Variation $variation The variation.
+	 * @return array<string,mixed>
+	 */
+	public static function variation_data( $data, $product, $variation ): array {
+		$data = (array) $data;
+
+		if ( ! $variation instanceof \WC_Product_Variation || ! isset( $data['price_html'] ) ) {
+			return $data;
+		}
+
+		$marker = self::read_marker( $variation->get_id() );
+
+		if ( $marker === null ) {
+			return $data;
+		}
+
+		$badge = self::badge_for_slug( ( 'campaign' === $marker['kind'] ? 'wcd-c' : 'wcd-b' ) . $marker['id'] );
+
+		// A discount already shows as a struck-through price beside a lower one,
+		// so repeating the percentage here would only say it twice.
+		if ( $badge === '' || (float) $variation->get_sale_price() > 0 ) {
+			return $data;
+		}
+
+		$data['price_html'] .= sprintf(
+			'<span class="wcd-offer">%s</span>',
+			esc_html( $badge )
+		);
+
+		return $data;
 	}
 
 	/**

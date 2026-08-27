@@ -125,6 +125,22 @@
 	color: #46591d;
 }
 
+/* Beside the price of the chosen option, in the same green the list uses for
+   what an option gives — so the eye that read it below recognises it above. */
+.wcd-offer {
+	display: inline-block;
+	margin-left: 0.6em;
+	padding: 0.15em 0.6em;
+	border-radius: 999px;
+	background: #eef3e0;
+	color: #46591d;
+	font-size: 0.75em;
+	font-weight: 700;
+	line-height: 1.6;
+	vertical-align: middle;
+	white-space: nowrap;
+}
+
 .wcd-swatches table.wcd-choice td.wcd-choice__price {
 	width: 1px;
 	white-space: nowrap;
