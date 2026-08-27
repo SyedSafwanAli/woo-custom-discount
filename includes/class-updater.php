@@ -28,7 +28,7 @@ defined( 'ABSPATH' ) || exit;
  */
 class Updater {
 
-	private const OWNER = 'SyedSafwanAli';
+	private const OWNER = 'thetechio-org';
 	private const REPO  = 'woo-custom-discount';
 
 	/** Where the last answer from GitHub is kept. */
@@ -330,10 +330,35 @@ class Updater {
 	 * @param object $upgrader The upgrader asking.
 	 * @return mixed
 	 */
-	public static function download( $reply, $package, $upgrader ) {
-		$ours = 'https://api.github.com/repos/' . self::OWNER . '/' . self::REPO;
+	/**
+	 * Whether this download is the release asset we offered.
+	 *
+	 * The owner is deliberately not part of the test. This once compared the
+	 * whole URL against the owner in the constant above, and when the repository
+	 * moved to an organisation GitHub started answering with the new owner's
+	 * URL. The comparison failed, the plugin let go of the download, and
+	 * WordPress fetched the asset without asking for the file — so GitHub handed
+	 * back the asset's JSON record, which WordPress dutifully passed to the
+	 * unzipper as if it were a plugin.
+	 *
+	 * What matters is that this is an asset of ours on GitHub's API, which the
+	 * host and the repository name settle between them.
+	 */
+	private static function is_our_asset( string $package ): bool {
+		$parts = wp_parse_url( $package );
 
-		if ( strpos( (string) $package, $ours ) !== 0 ) {
+		if ( ( $parts['host'] ?? '' ) !== 'api.github.com' ) {
+			return false;
+		}
+
+		return (bool) preg_match(
+			'#^/repos/[^/]+/' . preg_quote( self::REPO, '#' ) . '/releases/assets/\d+#',
+			(string) ( $parts['path'] ?? '' )
+		);
+	}
+
+	public static function download( $reply, $package, $upgrader ) {
+		if ( ! self::is_our_asset( (string) $package ) ) {
 			return $reply;
 		}
 
