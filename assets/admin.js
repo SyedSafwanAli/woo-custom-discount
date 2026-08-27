@@ -100,14 +100,30 @@
 	/**
 	 * Builds a chip, hidden input and all, so adding one needs no page reload.
 	 */
-	function makeChip( productId, batchId, label, removeLabel ) {
+	function makeChip( productId, batchId, label, removeLabel, field, plain ) {
 		var chip = document.createElement( 'span' );
 
-		chip.className = 'wcd-bchip';
+		chip.className = 'wcd-bchip' + ( plain ? ' wcd-bchip--plain' : '' );
 		chip.setAttribute( 'data-batch', batchId );
 
-		// A batch added here can be given its picture before the page is saved,
-		// which is the only moment anyone is thinking about that batch.
+		var input = document.createElement( 'input' );
+		input.type = 'hidden';
+		input.name = ( field || 'batches' ) + '[' + productId + '][]';
+		input.value = batchId;
+
+		var text = document.createElement( 'span' );
+		text.className = 'wcd-bchip__label';
+		text.textContent = label;
+
+		var button = document.createElement( 'button' );
+		button.type = 'button';
+		button.className = 'wcd-bchip__x';
+		button.setAttribute( 'data-wcd-remove', '' );
+		button.setAttribute( 'aria-label', removeLabel );
+		button.innerHTML = '&times;';
+
+		// Anything added here can be given its picture before the page is saved,
+		// which is the only moment anyone is thinking about it.
 		var pic = document.createElement( 'button' );
 		pic.type = 'button';
 		pic.className = 'wcd-bchip__pic';
@@ -120,10 +136,6 @@
 		picInput.name = 'batch_images[' + productId + '][' + batchId + ']';
 		picInput.value = '0';
 
-		var text = document.createElement( 'span' );
-		text.className = 'wcd-bchip__label';
-		text.textContent = label;
-
 		// Empty means no separate count for this batch, which is how every batch
 		// behaved before this box existed.
 		var qty = document.createElement( 'input' );
@@ -135,21 +147,15 @@
 		qty.step = '1';
 		qty.placeholder = '∞';
 
-		var button = document.createElement( 'button' );
-		button.type = 'button';
-		button.className = 'wcd-bchip__x';
-		button.setAttribute( 'data-wcd-remove', '' );
-		button.setAttribute( 'aria-label', removeLabel );
-		button.innerHTML = '&times;';
-
-		var input = document.createElement( 'input' );
-		input.type = 'hidden';
-		input.name = 'batches[' + productId + '][]';
-		input.value = batchId;
-
 		chip.appendChild( pic );
 		chip.appendChild( text );
-		chip.appendChild( qty );
+
+		// A campaign stands for the product's ordinary stock rather than a lot
+		// of its own, so there is no separate number to keep for it.
+		if ( ! plain ) {
+			chip.appendChild( qty );
+		}
+
 		chip.appendChild( button );
 		chip.appendChild( input );
 		chip.appendChild( picInput );
@@ -279,12 +285,16 @@
 
 			var option = picker.options[ picker.selectedIndex ];
 
+			var label = option.getAttribute( 'data-label' ) || option.textContent;
+
 			chips.appendChild(
 				makeChip(
 					row.getAttribute( 'data-product' ),
 					picker.value,
-					option.getAttribute( 'data-label' ) || option.textContent,
-					option.getAttribute( 'data-label' ) || option.textContent
+					label,
+					label,
+					picker.getAttribute( 'data-wcd-field' ),
+					picker.hasAttribute( 'data-wcd-plain' )
 				)
 			);
 
@@ -293,6 +303,37 @@
 
 			picker.value = '';
 			row.classList.add( 'is-dirty' );
+		} );
+
+		// A blanket campaign cannot be taken off a row — it covers the product
+		// either way — so its cross keeps the product out of it instead, and
+		// says so again to let it back in.
+		document.addEventListener( 'click', function ( event ) {
+			var toggle = event.target.closest( '[data-wcd-toggle]' );
+
+			if ( ! toggle ) {
+				return;
+			}
+
+			var chip = toggle.closest( '.wcd-bchip' );
+			var input = chip ? chip.querySelector( 'input[type="hidden"]' ) : null;
+
+			if ( ! chip || ! input ) {
+				return;
+			}
+
+			var out = input.value !== '0';
+
+			input.value = out ? '0' : '1';
+			chip.classList.toggle( 'is-excluded', out );
+			toggle.innerHTML = out ? '&plus;' : '&times;';
+			toggle.setAttribute( 'aria-label', toggle.getAttribute( out ? 'data-out' : 'data-in' ) || '' );
+
+			var row = chip.closest( '[data-wcd-batches]' );
+
+			if ( row ) {
+				row.classList.add( 'is-dirty' );
+			}
 		} );
 
 		document.addEventListener( 'click', function ( event ) {
@@ -440,7 +481,12 @@
 		wrap.appendChild( pop );
 		wrap.classList.add( 'is-open' );
 
-		openPicker = { wrap: wrap, pop: pop };
+		// Under the button that opened it. The popup is placed against the row,
+		// which was the same thing back when a row had one picker; with two it
+		// would open under the batch button no matter which was pressed.
+		pop.style.left = Math.max( 0, Math.min( button.offsetLeft, wrap.clientWidth - pop.offsetWidth ) ) + 'px';
+
+		openPicker = { wrap: wrap, pop: pop, button: button };
 
 		search.focus();
 	}
@@ -461,9 +507,17 @@
 
 			event.preventDefault();
 
+			// The row holds a picker for batches and another for campaigns, so
+			// the select is the one this button was rendered beside — asking the
+			// row for "a select" would always hand back the first.
 			var wrap = button.closest( '[data-wcd-batches]' );
-			var select = wrap ? wrap.querySelector( '[data-wcd-add]' ) : null;
-			var wasOpen = openPicker && openPicker.wrap === wrap;
+			var select = button.previousElementSibling;
+
+			if ( ! select || ! select.hasAttribute( 'data-wcd-add' ) ) {
+				select = wrap ? wrap.querySelector( '[data-wcd-add]' ) : null;
+			}
+
+			var wasOpen = openPicker && openPicker.button === button;
 
 			closePicker();
 

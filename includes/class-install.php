@@ -19,7 +19,7 @@ class Install {
 	/**
 	 * Bumped whenever the schema changes, so upgrades can run dbDelta again.
 	 */
-	public const DB_VERSION = 1;
+	public const DB_VERSION = 2;
 
 	/**
 	 * Table name without prefix => rules (campaigns and expiry batches).
@@ -108,6 +108,7 @@ class Install {
 			discount_percent decimal(5,2) NOT NULL DEFAULT 0.00,
 			scope varchar(20) NOT NULL DEFAULT 'products',
 			expiry_ym char(6) DEFAULT NULL,
+			display_label varchar(191) NOT NULL DEFAULT '',
 			ends_at datetime DEFAULT NULL,
 			countdown_enabled tinyint(1) NOT NULL DEFAULT 0,
 			priority int(11) NOT NULL DEFAULT 10,

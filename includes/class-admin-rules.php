@@ -290,6 +290,15 @@ class Admin_Rules {
 			__( 'Taken off the regular price, and rounded down — 6,995 less 60% becomes 2,798, never 2,798.50.', 'woo-custom-discount' )
 		);
 
+		self::field(
+			__( 'Order shown', 'woo-custom-discount' ),
+			sprintf(
+				'<input type="number" name="priority" class="small-text" step="1" value="%s">',
+				esc_attr( (string) $value( 'priority', 10 ) )
+			),
+			__( 'Where this sits in the list a shopper picks from, when a product has more than one choice. Smaller numbers come first. Leave every rule on 10 and they fall in the order they were made.', 'woo-custom-discount' )
+		);
+
 		self::close_section();
 
 		if ( $is_batch ) {
@@ -307,6 +316,20 @@ class Admin_Rules {
 				__( 'Expires', 'woo-custom-discount' ),
 				self::month_input( $expiry_ym ),
 				self::expiry_note( $expiry_ym )
+			);
+
+			self::field(
+				__( 'Shown to shoppers', 'woo-custom-discount' ),
+				sprintf(
+					'<input type="text" name="display_label" class="regular-text" value="%1$s" placeholder="%2$s">',
+					esc_attr( (string) $value( 'display_label', '' ) ),
+					esc_attr(
+						$expiry_ym !== ''
+							? Importer::format_expiry( $expiry_ym )
+							: __( 'the month above', 'woo-custom-discount' )
+					)
+				),
+				__( 'Leave this empty and the batch is listed by its month, which is what a shopper comparing stock wants to know. Fill it in when the batch is an offer rather than a date — “Buy One Get One Free” — and that is what appears on the product page instead.', 'woo-custom-discount' )
 			);
 
 			self::close_section();
@@ -676,6 +699,8 @@ class Admin_Rules {
 		$data = array(
 			'type'              => $type,
 			'title'             => isset( $_POST['title'] ) ? sanitize_text_field( wp_unslash( (string) $_POST['title'] ) ) : '',
+			'display_label'     => isset( $_POST['display_label'] ) ? sanitize_text_field( wp_unslash( (string) $_POST['display_label'] ) ) : '',
+			'priority'          => isset( $_POST['priority'] ) ? (int) $_POST['priority'] : 10,
 			'discount_percent'  => isset( $_POST['discount_percent'] ) ? (float) $_POST['discount_percent'] : 0.0,
 			'countdown_enabled' => ! empty( $_POST['countdown_enabled'] ),
 			'enabled'           => ! empty( $_POST['enabled'] ),

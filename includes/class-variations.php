@@ -398,7 +398,7 @@ class Variations {
 
 		// Only the batch that ran out is touched; every other batch this product
 		// is in, and every other product in this batch, is left alone.
-		Rules::set_product_batches( $product_id, $keep, array( $batch_id ) );
+		Rules::set_product_rules( $product_id, $keep, array( $batch_id ) );
 
 		self::set_stock( $product_id, $batch_id, null );
 		self::set_image( $product_id, $batch_id, 0 );
@@ -552,6 +552,20 @@ class Variations {
 				);
 			}
 		}
+
+		// The shopper sees these in this order, so the shop decides it. Batches
+		// used to come first and the campaign last, which is only ever right by
+		// accident — a shop leading with its headline discount wants that row at
+		// the top whichever kind it is. Equal numbers fall back to the id, so the
+		// order never wobbles between one page load and the next.
+		usort(
+			$options,
+			static function ( array $a, array $b ): int {
+				$by_order = (int) $a['rule']['priority'] <=> (int) $b['rule']['priority'];
+
+				return $by_order !== 0 ? $by_order : (int) $a['rule']['id'] <=> (int) $b['rule']['id'];
+			}
+		);
 
 		return $options;
 	}
@@ -1000,13 +1014,12 @@ class Variations {
 			$variation->set_date_on_sale_from( null );
 			$variation->set_date_on_sale_to( $ends ? (string) $ends : null );
 
-			// A batch with its own picture gets it; one without falls back to the
-			// product's, which is what WooCommerce does with an empty image id.
-			// Set every time, so clearing a picture takes effect as surely as
-			// choosing one. The campaign has no picture of its own — it is not a
-			// separate lot of stock, just the ordinary price.
+			// Any option with its own picture gets it; one without falls back to
+			// the product's, which is what WooCommerce does with an empty image
+			// id. Set every time, so clearing a picture takes effect as surely
+			// as choosing one.
 			$variation->set_image_id(
-				! $is_campaign && isset( $images[ $batch_id ] ) ? (string) $images[ $batch_id ] : ''
+				isset( $images[ $batch_id ] ) ? (string) $images[ $batch_id ] : ''
 			);
 
 			// A batch given a number counts down on its own; one without sells
@@ -1142,10 +1155,17 @@ class Variations {
 			$slug  = 'wcd-c' . (int) $rule['id'];
 			$label = (string) $rule['title'];
 		} else {
-			$slug  = 'wcd-b' . (int) $rule['id'];
-			$label = $rule['expiry_ym']
-				? Importer::format_expiry( (string) $rule['expiry_ym'] )
-				: (string) $rule['title'];
+			// A batch is listed by the month its stock expires in. That is what
+			// a shopper choosing between two lots wants to know, so it is the
+			// default. Where the batch is an offer rather than a date, the store
+			// owner names it and that name is shown in place of the month.
+			$slug   = 'wcd-b' . (int) $rule['id'];
+			$chosen = trim( (string) ( $rule['display_label'] ?? '' ) );
+			$label  = $chosen !== ''
+				? $chosen
+				: ( $rule['expiry_ym']
+					? Importer::format_expiry( (string) $rule['expiry_ym'] )
+					: (string) $rule['title'] );
 		}
 
 		$term = get_term_by( 'slug', $slug, self::TAXONOMY );

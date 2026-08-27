@@ -46,15 +46,17 @@ class Admin_Products {
 	 * Renders the tab.
 	 */
 	public static function render(): void {
-		$batches = self::batches();
+		$batches   = self::batches();
+		$campaigns = self::campaigns();
+		$blankets  = self::blanket_campaigns();
 
 		echo '<p class="wcd-intro">';
-		esc_html_e( 'Each product shows the batches it is in. A product can sit in several — some stock expiring sooner, some later — and each batch carries its own discount.', 'woo-custom-discount' );
+		esc_html_e( 'Each product shows the batches and campaigns it is in. A product can sit in several batches — some stock expiring sooner, some later — and each carries its own discount.', 'woo-custom-discount' );
 		echo '</p>';
 
-		if ( $batches === array() ) {
+		if ( $batches === array() && $campaigns === array() && $blankets === array() ) {
 			echo '<div class="wcd-empty"><p>';
-			esc_html_e( 'There are no batches yet, so there is nothing to assign. Create one on the Expiry Batches tab first.', 'woo-custom-discount' );
+			esc_html_e( 'There are no batches or campaigns yet, so there is nothing to assign. Create one on the Expiry Batches or Campaigns tab first.', 'woo-custom-discount' );
 			echo '</p></div>';
 
 			return;
@@ -70,8 +72,10 @@ class Admin_Products {
 			return;
 		}
 
-		$product_ids = array_map( 'intval', $query->posts );
-		$batch_map   = Rules::batch_map_for_products( $product_ids );
+		$product_ids  = array_map( 'intval', $query->posts );
+		$batch_map    = Rules::batch_map_for_products( $product_ids );
+		$campaign_map = Rules::campaign_map_for_products( $product_ids );
+		$excluded_map = Rules::exclusion_map_for_products( $product_ids );
 
 		self::render_pagination( $query, 'top' );
 
@@ -86,14 +90,28 @@ class Admin_Products {
 		// Every batch is offered in every picker, so a save is free to change any
 		// of them. The matrix had to name the ones it was allowed to touch,
 		// because the columns it hid would otherwise have been wiped.
-		foreach ( $batches as $batch ) {
-			printf( '<input type="hidden" name="managed[]" value="%d">', (int) $batch['id'] );
+		foreach ( array_merge( $batches, $campaigns ) as $rule ) {
+			printf( '<input type="hidden" name="managed[]" value="%d">', (int) $rule['id'] );
+		}
+
+		// Kept apart: these are not assigned, only excluded from, and a save
+		// must not read a missing chip as "take this product out of the rule".
+		foreach ( $blankets as $rule ) {
+			printf( '<input type="hidden" name="managed_blanket[]" value="%d">', (int) $rule['id'] );
 		}
 
 		echo '<div class="wcd-plist">';
 
 		foreach ( $product_ids as $product_id ) {
-			self::render_row( $product_id, $batches, $batch_map[ $product_id ] ?? array() );
+			self::render_row(
+				$product_id,
+				$batches,
+				$batch_map[ $product_id ] ?? array(),
+				$campaigns,
+				$campaign_map[ $product_id ] ?? array(),
+				$blankets,
+				$excluded_map[ $product_id ] ?? array()
+			);
 		}
 
 		echo '</div>';
@@ -160,7 +178,7 @@ class Admin_Products {
 				'<option value="%1$d"%2$s>%3$s (%4$d)</option>',
 				(int) $batch['id'],
 				selected( (int) ( $args['batch'] ?? 0 ), (int) $batch['id'], false ),
-				esc_html( self::batch_label( $batch ) ),
+				esc_html( self::rule_label( $batch ) ),
 				count( $batch['products'] )
 			);
 		}
@@ -202,11 +220,15 @@ class Admin_Products {
 	/**
 	 * One product, with its batches beneath the name.
 	 *
-	 * @param int                            $product_id Product.
-	 * @param array<int,array<string,mixed>> $batches    All batches.
-	 * @param int[]                          $in         Batches it is in.
+	 * @param int                            $product_id   Product.
+	 * @param array<int,array<string,mixed>> $batches      All batches.
+	 * @param int[]                          $in           Batches it is in.
+	 * @param array<int,array<string,mixed>> $campaigns    Assignable campaigns.
+	 * @param int[]                          $in_campaigns Campaigns it is in.
+	 * @param array<int,array<string,mixed>> $blankets     Campaigns that arrive on their own.
+	 * @param int[]                          $excluded     Blankets it is kept out of.
 	 */
-	private static function render_row( int $product_id, array $batches, array $in ): void {
+	private static function render_row( int $product_id, array $batches, array $in, array $campaigns = array(), array $in_campaigns = array(), array $blankets = array(), array $excluded = array() ): void {
 		$product = wc_get_product( $product_id );
 
 		if ( ! $product ) {
@@ -229,12 +251,6 @@ class Admin_Products {
 		if ( $outcome !== null && $outcome['type'] === Rules::TYPE_CAMPAIGN ) {
 			$rule     = Rules::get( $outcome['rule_id'] );
 			$campaign = $rule ? (string) $rule['title'] : '';
-		}
-
-		$by_id = array();
-
-		foreach ( $batches as $batch ) {
-			$by_id[ (int) $batch['id'] ] = $batch;
 		}
 
 		echo '<div class="wcd-plist__row">';
@@ -299,43 +315,155 @@ class Admin_Products {
 
 		echo '</div>';
 
-		// --- Batches ---------------------------------------------------------
+		// --- Everything it is in, in the order a shopper will see it ---------
+		self::render_chips(
+			$product_id,
+			$batches,
+			$in,
+			$campaigns,
+			$in_campaigns,
+			self::blankets_over( $product_id, $blankets ),
+			$excluded
+		);
+
+		printf( '<input type="hidden" name="shown[]" value="%d">', $product_id );
+
+		echo '</div>';
+	}
+
+	/**
+	 * Every chip this product carries, in the order a shopper will see them.
+	 *
+	 * Batches and campaigns used to sit in separate rows, which was tidy until
+	 * the order became something the shop sets. A page that groups by kind then
+	 * says the batch comes first while the product page says the campaign does,
+	 * and the one place you would go to check is the one place that lies. So
+	 * there is one row now, sorted the way the product page sorts, and it is the
+	 * pickers that stay apart — each adds to a different list.
+	 *
+	 * @param array<int,array<string,mixed>> $batches      All batches.
+	 * @param int[]                          $in           Batches it is in.
+	 * @param array<int,array<string,mixed>> $campaigns    Assignable campaigns.
+	 * @param int[]                          $in_campaigns Campaigns it is in.
+	 * @param array<int,array<string,mixed>> $over         Blankets falling on it.
+	 * @param int[]                          $excluded     Blankets it is kept out of.
+	 */
+	private static function render_chips( int $product_id, array $batches, array $in, array $campaigns, array $in_campaigns, array $over, array $excluded ): void {
+		$images = Variations::images_for( $product_id );
+		$stock  = Variations::stock_for( $product_id );
+
+		$chips = array();
+
+		$collect = static function ( array $rules, array $member, string $kind, bool $blanket ) use ( &$chips ): void {
+			$by_id = array();
+
+			foreach ( $rules as $rule ) {
+				$by_id[ (int) $rule['id'] ] = $rule;
+			}
+
+			foreach ( $member as $rule_id ) {
+				if ( isset( $by_id[ (int) $rule_id ] ) ) {
+					$chips[] = array(
+						'rule'    => $by_id[ (int) $rule_id ],
+						'kind'    => $kind,
+						'blanket' => $blanket,
+					);
+				}
+			}
+		};
+
+		$collect( $batches, $in, Rules::TYPE_BATCH, false );
+		$collect( $campaigns, $in_campaigns, Rules::TYPE_CAMPAIGN, false );
+		$collect( $over, wp_list_pluck( $over, 'id' ), Rules::TYPE_CAMPAIGN, true );
+
+		// The same sort the product page uses, for the same reason.
+		usort(
+			$chips,
+			static function ( array $a, array $b ): int {
+				$by_order = (int) $a['rule']['priority'] <=> (int) $b['rule']['priority'];
+
+				return $by_order !== 0 ? $by_order : (int) $a['rule']['id'] <=> (int) $b['rule']['id'];
+			}
+		);
+
 		printf( '<div class="wcd-plist__batches" data-wcd-batches data-product="%d">', $product_id );
 
 		echo '<span class="wcd-plist__chips" data-wcd-chips>';
 
-		$images = Variations::images_for( $product_id );
-		$stock  = Variations::stock_for( $product_id );
+		foreach ( $chips as $chip ) {
+			$id = (int) $chip['rule']['id'];
 
-		foreach ( $in as $batch_id ) {
-			$batch = $by_id[ (int) $batch_id ] ?? null;
+			if ( $chip['blanket'] ) {
+				// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped when built.
+				echo self::blanket_chip_html(
+					$product_id,
+					$chip['rule'],
+					in_array( $id, $excluded, true ),
+					$images[ $id ] ?? 0
+				);
 
-			if ( $batch === null ) {
 				continue;
 			}
 
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped when built.
 			echo self::chip_html(
 				$product_id,
-				$batch,
-				$images[ (int) $batch_id ] ?? 0,
-				$stock[ (int) $batch_id ] ?? null
+				$chip['rule'],
+				$images[ $id ] ?? 0,
+				$chip['kind'] === Rules::TYPE_BATCH ? ( $stock[ $id ] ?? null ) : null,
+				$chip['kind']
 			);
 		}
 
 		echo '</span>';
 
-		// The picker lists every batch; the script hides the ones already on the
-		// row, so the same batch cannot be added twice.
-		echo '<select class="wcd-plist__add" data-wcd-add>';
-		printf( '<option value="">%s</option>', esc_html__( '+ Add to batch', 'woo-custom-discount' ) );
+		self::render_picker( $batches, $in, Rules::TYPE_BATCH );
 
-		foreach ( $batches as $batch ) {
+		if ( $campaigns !== array() ) {
+			self::render_picker( $campaigns, $in_campaigns, Rules::TYPE_CAMPAIGN );
+		}
+
+		echo '</div>';
+	}
+
+	/**
+	 * The search box that adds one more rule of a given kind to the row.
+	 *
+	 * What a new chip should look like travels on the select rather than on the
+	 * row, because the row now holds both kinds and the script has to know which
+	 * of them it is building.
+	 *
+	 * @param array<int,array<string,mixed>> $rules Every rule of this kind.
+	 * @param int[]                          $in    The ones it is already in.
+	 * @param string                         $kind  Batch or campaign.
+	 */
+	private static function render_picker( array $rules, array $in, string $kind ): void {
+		if ( $rules === array() ) {
+			return;
+		}
+
+		$is_batch = $kind === Rules::TYPE_BATCH;
+
+		$add    = $is_batch ? __( '+ Add to batch', 'woo-custom-discount' ) : __( '+ Add to campaign', 'woo-custom-discount' );
+		$search = $is_batch ? __( 'Search batches', 'woo-custom-discount' ) : __( 'Search campaigns', 'woo-custom-discount' );
+		$none   = $is_batch ? __( 'No batch matches that', 'woo-custom-discount' ) : __( 'No campaign matches that', 'woo-custom-discount' );
+
+		// The picker lists every rule; the script hides the ones already on the
+		// row, so the same one cannot be added twice.
+		printf(
+			'<select class="wcd-plist__add" data-wcd-add data-wcd-field="%1$s"%2$s>',
+			$is_batch ? 'batches' : 'campaigns',
+			$is_batch ? '' : ' data-wcd-plain'
+		);
+
+		printf( '<option value="">%s</option>', esc_html( $add ) );
+
+		foreach ( $rules as $rule ) {
 			printf(
 				'<option value="%1$d" data-label="%2$s"%3$s>%2$s</option>',
-				(int) $batch['id'],
-				esc_attr( self::batch_label( $batch ) ),
-				in_array( (int) $batch['id'], $in, true ) ? ' hidden' : ''
+				(int) $rule['id'],
+				esc_attr( self::rule_label( $rule, $kind ) ),
+				in_array( (int) $rule['id'], $in, true ) ? ' hidden' : ''
 			);
 		}
 
@@ -345,16 +473,10 @@ class Admin_Products {
 		// than built in JavaScript so its labels can be translated.
 		printf(
 			'<button type="button" class="wcd-plist__pick" data-wcd-pick data-search-label="%1$s" data-empty-label="%2$s">%3$s</button>',
-			esc_attr__( 'Search batches', 'woo-custom-discount' ),
-			esc_attr__( 'No batch matches that', 'woo-custom-discount' ),
-			esc_html__( '+ Add to batch', 'woo-custom-discount' )
+			esc_attr( $search ),
+			esc_attr( $none ),
+			esc_html( $add )
 		);
-
-		echo '</div>';
-
-		printf( '<input type="hidden" name="shown[]" value="%d">', $product_id );
-
-		echo '</div>';
 	}
 
 	/**
@@ -365,9 +487,40 @@ class Admin_Products {
 	 *
 	 * @param array<string,mixed> $batch Batch data.
 	 */
-	private static function chip_html( int $product_id, array $batch, int $image_id = 0, ?int $stock = null ): string {
+	private static function chip_html( int $product_id, array $batch, int $image_id = 0, ?int $stock = null, string $kind = Rules::TYPE_BATCH ): string {
 		$batch_id = (int) $batch['id'];
 		$thumb    = $image_id > 0 ? wp_get_attachment_image_url( $image_id, 'thumbnail' ) : '';
+
+		// A campaign gets a picture but no count. It shows up as a variation the
+		// shopper picks, so it wants a picture like any other; what it does not
+		// have is a lot of stock of its own to tally.
+		if ( $kind !== Rules::TYPE_BATCH ) {
+			return sprintf(
+				'<span class="wcd-bchip wcd-bchip--plain%6$s" data-batch="%1$d">
+					<button type="button" class="wcd-bchip__pic" data-wcd-image title="%5$s" aria-label="%5$s">%7$s</button>
+					<span class="wcd-bchip__label">%2$s</span>
+					<button type="button" class="wcd-bchip__x" data-wcd-remove aria-label="%3$s">&times;</button>
+					<input type="hidden" name="campaigns[%4$d][]" value="%1$d">
+					<input type="hidden" class="wcd-bchip__img" name="batch_images[%4$d][%1$d]" value="%8$d">
+				</span>',
+				$batch_id,
+				esc_html( self::rule_label( $batch, $kind ) ),
+				esc_attr(
+					sprintf(
+						/* translators: %s: campaign name. */
+						__( 'Remove from %s', 'woo-custom-discount' ),
+						self::rule_label( $batch, $kind )
+					)
+				),
+				$product_id,
+				esc_attr__( 'Picture for this campaign', 'woo-custom-discount' ),
+				$thumb !== '' ? ' has-image' : '',
+				$thumb !== ''
+					? '<img src="' . esc_url( $thumb ) . '" alt="">'
+					: '<span class="wcd-bchip__pic-empty" aria-hidden="true">+</span>',
+				$image_id
+			);
+		}
 
 		return sprintf(
 			'<span class="wcd-bchip%7$s" data-batch="%1$d">
@@ -380,12 +533,12 @@ class Admin_Products {
 				<input type="hidden" class="wcd-bchip__img" name="batch_images[%4$d][%1$d]" value="%8$d">
 			</span>',
 			$batch_id,
-			esc_html( self::batch_label( $batch ) ),
+			esc_html( self::rule_label( $batch ) ),
 			esc_attr(
 				sprintf(
 					/* translators: %s: batch name. */
 					__( 'Remove from %s', 'woo-custom-discount' ),
-					self::batch_label( $batch )
+					self::rule_label( $batch )
 				)
 			),
 			$product_id,
@@ -404,18 +557,28 @@ class Admin_Products {
 	/**
 	 * "Sep 2026 · 60%" — month and discount, which is what tells two apart.
 	 *
-	 * @param array<string,mixed> $batch Batch data.
+	 * A batch shown to shoppers under its own name is listed here under that
+	 * name too. Otherwise it answers to a month nobody thinks of it by, and
+	 * cannot be found by typing what it is called.
+	 *
+	 * A campaign has only its name, which is already how the shop thinks of it.
+	 *
+	 * @param array<string,mixed> $batch Rule data.
+	 * @param string              $kind  Batch or campaign.
 	 */
-	private static function batch_label( array $batch ): string {
-		$month = $batch['expiry_ym']
+	private static function rule_label( array $batch, string $kind = Rules::TYPE_BATCH ): string {
+		$percent = Admin_Rules::percent_label( (float) $batch['discount_percent'] );
+
+		if ( $kind !== Rules::TYPE_BATCH ) {
+			return sprintf( '%1$s · %2$s%%', (string) $batch['title'], $percent );
+		}
+
+		$chosen = trim( (string) ( $batch['display_label'] ?? '' ) );
+		$month  = $batch['expiry_ym']
 			? Importer::format_expiry( (string) $batch['expiry_ym'] )
 			: (string) $batch['title'];
 
-		return sprintf(
-			'%1$s · %2$s%%',
-			$month,
-			Admin_Rules::percent_label( (float) $batch['discount_percent'] )
-		);
+		return sprintf( '%1$s · %2$s%%', $chosen !== '' ? $chosen : $month, $percent );
 	}
 
 	/**
@@ -461,6 +624,156 @@ class Admin_Products {
 			),
 			esc_attr( $where )
 		);
+	}
+
+	/**
+	 * The campaigns a product can be put into from here.
+	 *
+	 * Only those aimed at named products. A campaign covering the whole shop, or
+	 * a whole category, already reaches this product without being told to, and
+	 * adding it to the list would offer a switch that does nothing.
+	 *
+	 * @return array<int,array<string,mixed>>
+	 */
+	private static function campaigns(): array {
+		$out = array();
+
+		foreach ( Rules::query( array( 'type' => Rules::TYPE_CAMPAIGN ) ) as $campaign ) {
+			if ( $campaign['scope'] !== Rules::SCOPE_PRODUCTS ) {
+				continue;
+			}
+
+			$out[] = $campaign;
+		}
+
+		usort(
+			$out,
+			static fn( array $a, array $b ): int => strcasecmp( (string) $a['title'], (string) $b['title'] )
+		);
+
+		return $out;
+	}
+
+	/**
+	 * A chip for a campaign that arrives on its own.
+	 *
+	 * This one cannot be taken off the row, because the campaign covers the
+	 * product whether the row says so or not. What the cross does instead is
+	 * keep this product out of it — and pressing it again lets it back in, so
+	 * nothing is lost by trying. The state travels in the input's value rather
+	 * than in whether the input exists, which is what makes it reversible
+	 * without a picker to fetch the chip back from.
+	 *
+	 * @param array<string,mixed> $campaign Campaign data.
+	 */
+	private static function blanket_chip_html( int $product_id, array $campaign, bool $excluded, int $image_id = 0 ): string {
+		$id    = (int) $campaign['id'];
+		$thumb = $image_id > 0 ? wp_get_attachment_image_url( $image_id, 'thumbnail' ) : '';
+
+		$reach = $campaign['scope'] === Rules::SCOPE_ALL
+			? __( 'every product', 'woo-custom-discount' )
+			: __( 'a category', 'woo-custom-discount' );
+
+		return sprintf(
+			'<span class="wcd-bchip wcd-bchip--plain wcd-bchip--auto%6$s%12$s" data-batch="%1$d" title="%5$s">
+				<button type="button" class="wcd-bchip__pic" data-wcd-image title="%11$s" aria-label="%11$s">%13$s</button>
+				<span class="wcd-bchip__label">%2$s</span>
+				<button type="button" class="wcd-bchip__x" data-wcd-toggle
+					data-in="%7$s" data-out="%8$s" aria-label="%3$s">%9$s</button>
+				<input type="hidden" name="blanket[%4$d][%1$d]" value="%10$s">
+				<input type="hidden" class="wcd-bchip__img" name="batch_images[%4$d][%1$d]" value="%14$d">
+			</span>',
+			$id,
+			esc_html( self::rule_label( $campaign, Rules::TYPE_CAMPAIGN ) ),
+			esc_attr(
+				$excluded
+					? sprintf(
+						/* translators: %s: campaign name. */
+						__( 'Put this product back into %s', 'woo-custom-discount' ),
+						(string) $campaign['title']
+					)
+					: sprintf(
+						/* translators: %s: campaign name. */
+						__( 'Keep this product out of %s', 'woo-custom-discount' ),
+						(string) $campaign['title']
+					)
+			),
+			$product_id,
+			esc_attr(
+				sprintf(
+					/* translators: %s: what the campaign covers. */
+					__( 'Runs on %s, so it was not assigned here.', 'woo-custom-discount' ),
+					$reach
+				)
+			),
+			$excluded ? ' is-excluded' : '',
+			esc_attr__( 'Keep this product out', 'woo-custom-discount' ),
+			esc_attr__( 'Put this product back', 'woo-custom-discount' ),
+			$excluded ? '&plus;' : '&times;',
+			$excluded ? '0' : '1',
+			esc_attr__( 'Picture for this campaign', 'woo-custom-discount' ),
+			$thumb !== '' ? ' has-image' : '',
+			$thumb !== ''
+				? '<img src="' . esc_url( $thumb ) . '" alt="">'
+				: '<span class="wcd-bchip__pic-empty" aria-hidden="true">+</span>',
+			$image_id
+		);
+	}
+
+	/**
+	 * Campaigns that reach a product without being told to.
+	 *
+	 * A campaign set to the whole shop, or to a category, needs no assignment —
+	 * it simply covers whatever falls under it. Those are the discounts a shop
+	 * owner forgets are running, so the row shows them, and the only thing that
+	 * can be done to one from here is to keep this product out of it.
+	 *
+	 * @return array<int,array<string,mixed>>
+	 */
+	private static function blanket_campaigns(): array {
+		$out = array();
+
+		foreach ( Rules::query( array( 'type' => Rules::TYPE_CAMPAIGN, 'enabled' => true ) ) as $campaign ) {
+			if ( $campaign['scope'] === Rules::SCOPE_PRODUCTS ) {
+				continue;
+			}
+
+			$out[] = $campaign;
+		}
+
+		return $out;
+	}
+
+	/**
+	 * Which of the blanket campaigns fall over this particular product.
+	 *
+	 * @param array<int,array<string,mixed>> $blankets From blanket_campaigns().
+	 * @return array<int,array<string,mixed>>
+	 */
+	private static function blankets_over( int $product_id, array $blankets ): array {
+		if ( $blankets === array() ) {
+			return array();
+		}
+
+		$terms = wp_get_post_terms( $product_id, 'product_cat', array( 'fields' => 'ids' ) );
+		$terms = is_wp_error( $terms ) ? array() : array_map( 'intval', $terms );
+
+		foreach ( $terms as $term_id ) {
+			$terms = array_merge( $terms, array_map( 'intval', get_ancestors( $term_id, 'product_cat', 'taxonomy' ) ) );
+		}
+
+		$out = array();
+
+		foreach ( $blankets as $campaign ) {
+			$covers = $campaign['scope'] === Rules::SCOPE_ALL
+				|| (bool) array_intersect( $campaign['categories'], $terms );
+
+			if ( $covers ) {
+				$out[] = $campaign;
+			}
+		}
+
+		return $out;
 	}
 
 	/**
@@ -564,6 +877,10 @@ class Admin_Products {
 		$shown   = isset( $_POST['shown'] ) ? array_map( 'intval', (array) $_POST['shown'] ) : array();
 		$managed = isset( $_POST['managed'] ) ? array_map( 'intval', (array) $_POST['managed'] ) : array();
 		$chosen  = isset( $_POST['batches'] ) ? (array) wp_unslash( $_POST['batches'] ) : array();
+		$joined  = isset( $_POST['campaigns'] ) ? (array) wp_unslash( $_POST['campaigns'] ) : array();
+
+		$blankets = isset( $_POST['managed_blanket'] ) ? array_map( 'intval', (array) $_POST['managed_blanket'] ) : array();
+		$keep_out = isset( $_POST['blanket'] ) ? (array) wp_unslash( $_POST['blanket'] ) : array();
 
 		$pictures = isset( $_POST['batch_images'] ) ? (array) wp_unslash( $_POST['batch_images'] ) : array();
 		$counts   = isset( $_POST['batch_stock'] ) ? (array) wp_unslash( $_POST['batch_stock'] ) : array();
@@ -572,15 +889,41 @@ class Admin_Products {
 
 		foreach ( $shown as $product_id ) {
 			$checked = isset( $chosen[ $product_id ] ) ? array_map( 'intval', (array) $chosen[ $product_id ] ) : array();
-			$touched = Rules::set_product_batches( $product_id, $checked, $managed );
 
-			// Pictures are saved for the batches the product is in after the
-			// change, so removing a batch takes its picture with it rather than
-			// leaving one behind for a batch nobody can see.
+			// Batches and campaigns go in together. `$managed` names every rule
+			// the page offered, so one call settles both lists and a rule the
+			// page did not show keeps whatever it had.
+			$campaigns = isset( $joined[ $product_id ] ) ? array_map( 'intval', (array) $joined[ $product_id ] ) : array();
+			$touched   = Rules::set_product_rules( $product_id, array_merge( $checked, $campaigns ), $managed );
+
+			// A blanket campaign is never joined, only stepped out of. Its chip
+			// always submits, carrying 1 for "leave it running here" and 0 for
+			// "keep this product out", so a row the shop never touched says so
+			// rather than saying nothing.
+			$out = array();
+
+			foreach ( $blankets as $rule_id ) {
+				if ( ( $keep_out[ $product_id ][ $rule_id ] ?? '1' ) === '0' ) {
+					$out[] = $rule_id;
+				}
+			}
+
+			if ( Rules::set_product_rules( $product_id, $out, $blankets, Rules::ITEM_EXCLUDE ) ) {
+				$touched = true;
+			}
+
+			// Pictures are saved for whatever the product is in after the change
+			// — batches and campaigns alike — so removing one takes its picture
+			// with it rather than leaving one behind for a chip nobody can see.
 			$before = Variations::images_for( $product_id );
 			$after  = array();
 
-			foreach ( $checked as $batch_id ) {
+			// A blanket campaign the product is still inside keeps its picture;
+			// one it has been taken out of loses it, exactly as a removed batch
+			// does.
+			$staying = array_values( array_diff( $blankets, $out ) );
+
+			foreach ( array_merge( $checked, $campaigns, $staying ) as $batch_id ) {
 				$chosen_image = isset( $pictures[ $product_id ][ $batch_id ] )
 					? (int) $pictures[ $product_id ][ $batch_id ]
 					: 0;

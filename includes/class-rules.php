@@ -283,6 +283,38 @@ class Rules {
 	 * @return array<int,int[]> Product ID => batch rule IDs.
 	 */
 	public static function batch_map_for_products( array $product_ids ): array {
+		return self::rule_map_for_products( $product_ids, self::TYPE_BATCH );
+	}
+
+	/**
+	 * The same, for campaigns.
+	 *
+	 * @param int[] $product_ids Products to look up.
+	 * @return array<int,int[]> Product id => campaign ids.
+	 */
+	public static function campaign_map_for_products( array $product_ids ): array {
+		return self::rule_map_for_products( $product_ids, self::TYPE_CAMPAIGN );
+	}
+
+	/**
+	 * Which campaigns each product has been kept out of.
+	 *
+	 * @param int[] $product_ids Products to look up.
+	 * @return array<int,int[]> Product id => campaign ids it is excluded from.
+	 */
+	public static function exclusion_map_for_products( array $product_ids ): array {
+		return self::rule_map_for_products( $product_ids, self::TYPE_CAMPAIGN, self::ITEM_EXCLUDE );
+	}
+
+	/**
+	 * Which rules of one kind each product is named in.
+	 *
+	 * @param int[]  $product_ids Products to look up.
+	 * @param string $type        Campaign or batch.
+	 * @param string $item_type   Membership, or the exclusion list.
+	 * @return array<int,int[]> Product id => rule ids.
+	 */
+	private static function rule_map_for_products( array $product_ids, string $type, string $item_type = self::ITEM_PRODUCT ): array {
 		global $wpdb;
 
 		$product_ids = array_values( array_unique( array_map( 'intval', $product_ids ) ) );
@@ -302,7 +334,7 @@ class Rules {
 			  WHERE r.type = %s
 			    AND i.item_type = %s
 			    AND i.item_id IN ({$placeholders})",
-			array_merge( array( self::TYPE_BATCH, self::ITEM_PRODUCT ), $product_ids )
+			array_merge( array( $type, $item_type ), $product_ids )
 		);
 
 		$rows = $wpdb->get_results( $sql, ARRAY_A );
@@ -316,19 +348,20 @@ class Rules {
 	}
 
 	/**
-	 * Sets which batches one product belongs to.
+	 * Sets which rules one product belongs to — batches, campaigns, or both.
 	 *
-	 * `$managed` is the crucial argument: only those batches are touched. The
-	 * assignment grid can hide expired batches to keep its columns readable, and
-	 * without this a product's membership of a hidden batch would be wiped
-	 * simply because its checkbox was not on the page.
+	 * `$managed` is the crucial argument: only those rules are touched. The
+	 * assignment screen can leave rules off the page — an expired batch, a
+	 * campaign that covers the whole shop — and without this a product's
+	 * membership of one of them would be wiped simply because it was not shown.
 	 *
-	 * @param int   $product_id Product to change.
-	 * @param int[] $checked    Batch IDs it should belong to.
-	 * @param int[] $managed    Batch IDs this call is allowed to change.
+	 * @param int    $product_id Product to change.
+	 * @param int[]  $checked    Rule IDs it should belong to.
+	 * @param int[]  $managed    Rule IDs this call is allowed to change.
+	 * @param string $item_type  Membership, or the exclusion list.
 	 * @return bool Whether anything changed.
 	 */
-	public static function set_product_batches( int $product_id, array $checked, array $managed ): bool {
+	public static function set_product_rules( int $product_id, array $checked, array $managed, string $item_type = self::ITEM_PRODUCT ): bool {
 		global $wpdb;
 
 		$managed = array_map( 'intval', $managed );
@@ -338,8 +371,13 @@ class Rules {
 			return false;
 		}
 
-		$table   = Install::table( Install::TABLE_ITEMS );
-		$current = array_intersect( self::batches_for_product( $product_id ), $managed );
+		$table = Install::table( Install::TABLE_ITEMS );
+
+		// Read what the product is in straight from the rules being managed,
+		// rather than from a list of one kind. The caller has already decided
+		// which rules this save is allowed to touch, and campaigns are assigned
+		// from the same screen as batches now.
+		$current = array_intersect( self::product_is_in( $product_id, $managed, $item_type ), $managed );
 
 		$add    = array_diff( $checked, $current );
 		$remove = array_diff( $current, $checked );
@@ -349,7 +387,7 @@ class Rules {
 				$table,
 				array(
 					'rule_id'   => $rule_id,
-					'item_type' => self::ITEM_PRODUCT,
+					'item_type' => $item_type,
 					'item_id'   => $product_id,
 				)
 			);
@@ -360,13 +398,45 @@ class Rules {
 				$table,
 				array(
 					'rule_id'   => $rule_id,
-					'item_type' => self::ITEM_PRODUCT,
+					'item_type' => $item_type,
 					'item_id'   => $product_id,
 				)
 			);
 		}
 
 		return $add !== array() || $remove !== array();
+	}
+
+	/**
+	 * Which of these rules the product is already named in.
+	 *
+	 * @param int[]  $rule_ids  Rules to check against.
+	 * @param string $item_type Membership, or the exclusion list.
+	 * @return int[]
+	 */
+	private static function product_is_in( int $product_id, array $rule_ids, string $item_type = self::ITEM_PRODUCT ): array {
+		global $wpdb;
+
+		$rule_ids = array_values( array_unique( array_map( 'intval', $rule_ids ) ) );
+
+		if ( $rule_ids === array() ) {
+			return array();
+		}
+
+		$items        = Install::table( Install::TABLE_ITEMS );
+		$placeholders = implode( ',', array_fill( 0, count( $rule_ids ), '%d' ) );
+
+		return array_map(
+			'intval',
+			(array) $wpdb->get_col(
+				$wpdb->prepare(
+					"SELECT rule_id FROM {$items}
+					  WHERE item_type = %s AND item_id = %d
+					    AND rule_id IN ({$placeholders})",
+					array_merge( array( $item_type, $product_id ), $rule_ids )
+				)
+			)
+		);
 	}
 
 	/**
@@ -486,6 +556,10 @@ class Rules {
 		if ( ! $partial || array_key_exists( 'expiry_ym', $data ) ) {
 			$ym = (string) ( $data['expiry_ym'] ?? '' );
 			$set( 'expiry_ym', preg_match( '/^\d{6}$/', $ym ) ? $ym : null );
+		}
+
+		if ( ! $partial || array_key_exists( 'display_label', $data ) ) {
+			$set( 'display_label', sanitize_text_field( (string) ( $data['display_label'] ?? '' ) ) );
 		}
 
 		if ( ! $partial || array_key_exists( 'ends_at', $data ) ) {

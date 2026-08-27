@@ -636,6 +636,41 @@
 	white-space: nowrap;
 }
 
+/* Batches and campaigns share one row, in the order the shopper sees them, so
+   colour is what tells them apart: filled green for a lot of stock, filled blue
+   for a campaign the shop chose, outlined blue for one that simply applies. */
+.wcd-admin .wcd-bchip--plain {
+	background: #e6eefb;
+	color: #1c3d6e;
+}
+
+/* Not chosen but running anyway: outlined rather than filled, so the row reads
+   as "these two were assigned, this one just applies". */
+.wcd-admin .wcd-bchip--auto {
+	background: transparent;
+	box-shadow: inset 0 0 0 1px #b9cdea;
+}
+
+.wcd-admin .wcd-bchip--auto.is-excluded {
+	box-shadow: inset 0 0 0 1px #dcdcde;
+	color: #8c8f94;
+}
+
+.wcd-admin .wcd-bchip--auto.is-excluded .wcd-bchip__label {
+	text-decoration: line-through;
+}
+
+.wcd-admin .wcd-bchip--auto.is-excluded .wcd-bchip__x {
+	background: rgba( 0, 0, 0, 0.06 );
+	color: #50575e;
+}
+
+/* Resting only — the red hover every remove button shares is left alone. */
+.wcd-admin .wcd-bchip--plain .wcd-bchip__x {
+	background: rgba( 28, 61, 110, 0.12 );
+	color: #1c3d6e;
+}
+
 .wcd-admin button.wcd-bchip__x {
 	display: inline-flex;
 	align-items: center;
@@ -787,6 +822,7 @@
 	position: relative;
 }
 
+/* `left` is set by the script, to sit under whichever picker was opened. */
 .wcd-admin .wcd-pick {
 	position: absolute;
 	top: calc( 100% + 4px );
