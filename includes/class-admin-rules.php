@@ -291,6 +291,24 @@ class Admin_Rules {
 		);
 
 		self::field(
+			__( 'Instead of the percentage', 'woo-custom-discount' ),
+			sprintf(
+				'<input type="text" name="badge" class="regular-text" value="%1$s" placeholder="%2$s">',
+				esc_attr( (string) $value( 'badge', '' ) ),
+				esc_attr(
+					(float) $value( 'discount_percent', 0 ) > 0
+						? sprintf(
+							/* translators: %s: percentage. */
+							__( '%s%% off', 'woo-custom-discount' ),
+							Admin_Rules::percent_label( (float) $value( 'discount_percent', 0 ) )
+						)
+						: __( 'nothing', 'woo-custom-discount' )
+				)
+			),
+			__( 'Words to show beside this choice on the product page. Leave it empty and the discount is shown — an offer that takes nothing off the price shows nothing at all, which is why “Buy One Get One Free” sits there blank. Write what the shopper gains: “2 for 1”, “Second bottle free”. Take care with a percentage: the price beside it is not reduced, so “50% off” would read as though it already had been.', 'woo-custom-discount' )
+		);
+
+		self::field(
 			__( 'Order shown', 'woo-custom-discount' ),
 			sprintf(
 				'<input type="number" name="priority" class="small-text" step="1" value="%s">',
@@ -701,6 +719,7 @@ class Admin_Rules {
 			'title'             => isset( $_POST['title'] ) ? sanitize_text_field( wp_unslash( (string) $_POST['title'] ) ) : '',
 			'display_label'     => isset( $_POST['display_label'] ) ? sanitize_text_field( wp_unslash( (string) $_POST['display_label'] ) ) : '',
 			'priority'          => isset( $_POST['priority'] ) ? (int) $_POST['priority'] : 10,
+			'badge'             => isset( $_POST['badge'] ) ? sanitize_text_field( wp_unslash( (string) $_POST['badge'] ) ) : '',
 			'discount_percent'  => isset( $_POST['discount_percent'] ) ? (float) $_POST['discount_percent'] : 0.0,
 			'countdown_enabled' => ! empty( $_POST['countdown_enabled'] ),
 			'enabled'           => ! empty( $_POST['enabled'] ),

@@ -1242,8 +1242,8 @@ class Variations {
 				continue;
 			}
 
-			$price   = $prices[ $slug ] ?? null;
-			$percent = self::percent_for_slug( $slug );
+			$price = $prices[ $slug ] ?? null;
+			$badge = self::badge_for_slug( $slug );
 
 			$rows .= sprintf(
 				'<tr class="wcd-choice__row" data-value="%1$s" tabindex="0" role="radio" aria-checked="false">
@@ -1254,15 +1254,7 @@ class Variations {
 				</tr>',
 				esc_attr( $slug ),
 				esc_html( $term->name ),
-				$percent > 0
-					? esc_html(
-						sprintf(
-							/* translators: %s: percentage. */
-							__( '%s%% off', 'woo-custom-discount' ),
-							Admin_Rules::percent_label( $percent )
-						)
-					)
-					: '',
+				esc_html( $badge ),
 				$price !== null ? wp_kses_post( wc_price( $price ) ) : ''
 			);
 		}
@@ -1290,24 +1282,55 @@ class Variations {
 	}
 
 	/**
-	 * The discount behind one option.
+	 * What to print where the percentage goes.
 	 *
-	 * The term slug carries the batch id, which is what makes this possible
-	 * without another lookup table — and what keeps the link intact when a batch
-	 * is renamed or its month moved.
+	 * An offer that takes nothing off the price has nothing to say here, and
+	 * "Buy One Get One Free" sat beside its full price with the column blank
+	 * while the row under it read "10% off". The shop writes the words itself
+	 * rather than having a figure worked out for it: the second bottle is not a
+	 * discount on the first, and printing "50% off" next to an unreduced price
+	 * would tell the shopper the price had already been halved.
 	 */
-	private static function percent_for_slug( string $slug ): float {
-		// Batch or campaign — both are rules with a percentage, and the shopper
-		// weighing them up wants to see it on either. Reading only the batches
-		// left the campaign row as the one choice that would not say what it
-		// took off.
-		if ( ! preg_match( '/^wcd-[bc](\d+)$/', $slug, $m ) ) {
-			return 0.0;
+	private static function badge_for_slug( string $slug ): string {
+		$rule = self::rule_for_slug( $slug );
+
+		if ( ! $rule ) {
+			return '';
 		}
 
-		$rule = Rules::get( (int) $m[1] );
+		$badge = trim( (string) ( $rule['badge'] ?? '' ) );
 
-		return $rule ? (float) $rule['discount_percent'] : 0.0;
+		if ( $badge !== '' ) {
+			return $badge;
+		}
+
+		$percent = (float) $rule['discount_percent'];
+
+		return $percent > 0
+			? sprintf(
+				/* translators: %s: percentage. */
+				__( '%s%% off', 'woo-custom-discount' ),
+				Admin_Rules::percent_label( $percent )
+			)
+			: '';
+	}
+
+	/**
+	 * The rule one option stands for.
+	 *
+	 * The term slug carries the rule's id, which is what makes this possible
+	 * without another lookup table — and what keeps the link intact when a batch
+	 * is renamed or its month moved. Batch or campaign: both are rules, and the
+	 * shopper weighing them up wants to see what each one offers.
+	 *
+	 * @return array<string,mixed>|null
+	 */
+	private static function rule_for_slug( string $slug ): ?array {
+		if ( ! preg_match( '/^wcd-[bc](\d+)$/', $slug, $m ) ) {
+			return null;
+		}
+
+		return Rules::get( (int) $m[1] );
 	}
 
 	/**

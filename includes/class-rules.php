@@ -562,6 +562,10 @@ class Rules {
 			$set( 'display_label', sanitize_text_field( (string) ( $data['display_label'] ?? '' ) ) );
 		}
 
+		if ( ! $partial || array_key_exists( 'badge', $data ) ) {
+			$set( 'badge', sanitize_text_field( (string) ( $data['badge'] ?? '' ) ) );
+		}
+
 		if ( ! $partial || array_key_exists( 'ends_at', $data ) ) {
 			$ends = (string) ( $data['ends_at'] ?? '' );
 			$set( 'ends_at', $ends !== '' ? $ends : null );
