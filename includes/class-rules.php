@@ -562,6 +562,10 @@ class Rules {
 			$set( 'display_label', sanitize_text_field( (string) ( $data['display_label'] ?? '' ) ) );
 		}
 
+		if ( ! $partial || array_key_exists( 'free_extras', $data ) ) {
+			$set( 'free_extras', max( 0, (int) ( $data['free_extras'] ?? 0 ) ) );
+		}
+
 		if ( ! $partial || array_key_exists( 'badge', $data ) ) {
 			$set( 'badge', sanitize_text_field( (string) ( $data['badge'] ?? '' ) ) );
 		}
@@ -591,6 +595,33 @@ class Rules {
 	}
 
 	/**
+	 * How many the shopper walks away with, for one payment.
+	 *
+	 * @param array<string,mixed> $rule Rule data.
+	 */
+	public static function units( array $rule ): int {
+		return 1 + max( 0, (int) ( $rule['free_extras'] ?? 0 ) );
+	}
+
+	/**
+	 * What the offer comes to per item, discount and free extras together.
+	 *
+	 * Buy one get one free takes nothing off the price of the one being paid
+	 * for, so its own percentage is nought — and yet two bottles for the price
+	 * of one is half price, which is the figure worth showing and worth
+	 * filtering by. Twenty percent off with a second bottle free is sixty:
+	 * four-fifths of the money for twice the goods.
+	 *
+	 * @param array<string,mixed> $rule Rule data.
+	 */
+	public static function effective_percent( array $rule ): float {
+		$units = self::units( $rule );
+		$paid  = 1 - ( (float) $rule['discount_percent'] / 100 );
+
+		return round( ( 1 - ( $paid / $units ) ) * 100, 2 );
+	}
+
+	/**
 	 * Casts a database row and attaches its item lists.
 	 *
 	 * @param array<string,mixed> $row Raw row.
@@ -602,6 +633,7 @@ class Rules {
 		$row['discount_percent']  = (float) $row['discount_percent'];
 		$row['countdown_enabled'] = (bool) $row['countdown_enabled'];
 		$row['priority']          = (int) $row['priority'];
+		$row['free_extras']       = (int) ( $row['free_extras'] ?? 0 );
 
 		$row['products']   = self::items( $row['id'], self::ITEM_PRODUCT );
 		$row['categories'] = self::items( $row['id'], self::ITEM_CATEGORY );

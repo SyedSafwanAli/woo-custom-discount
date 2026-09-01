@@ -283,10 +283,25 @@ class Price_Engine {
 		// batch still yields a discount, so hiding keeps working after expiry.
 		self::sync_expiry_meta( $product_id );
 
+		$rule = $outcome === null ? null : Rules::get( (int) $outcome['rule_id'] );
+
 		if ( $regular <= 0 || $outcome === null || $outcome['percent'] <= 0 ) {
 			if ( $owned ) {
 				self::clear_product( $product_id, false );
+			}
 
+			// Buy one get one free asks the full price for the one being paid
+			// for, so there is no sale price to write — and yet the shopper is
+			// getting half off, which a filter for "50% off" ought to find. The
+			// figure is recorded without this ever owning the price.
+			if ( $rule !== null && $regular > 0 && Rules::effective_percent( $rule ) > 0 ) {
+				update_post_meta( $product_id, self::META_PERCENT, (string) Rules::effective_percent( $rule ) );
+				update_post_meta( $product_id, self::META_RULE, (string) $outcome['rule_id'] );
+
+				return $owned ? 'cleared' : 'skipped';
+			}
+
+			if ( $owned ) {
 				return 'cleared';
 			}
 
@@ -308,7 +323,14 @@ class Price_Engine {
 		}
 
 		update_post_meta( $product_id, self::META_OWNED, '1' );
-		update_post_meta( $product_id, self::META_PERCENT, (string) round( $outcome['percent'], 2 ) );
+
+		// What the shopper gains, free extras and all — so a filter for "50% off"
+		// finds two bottles for the price of one, which is what that is.
+		update_post_meta(
+			$product_id,
+			self::META_PERCENT,
+			(string) ( $rule ? Rules::effective_percent( $rule ) : round( $outcome['percent'], 2 ) )
+		);
 		update_post_meta( $product_id, self::META_RULE, (string) $outcome['rule_id'] );
 
 		$changed = $current === '' || abs( (float) $current - $new_price ) > 0.0001;
@@ -378,7 +400,7 @@ class Price_Engine {
 		$best = 0.0;
 
 		foreach ( Variations::options_for( $product_id ) as $option ) {
-			$best = max( $best, (float) $option['percent'] );
+			$best = max( $best, Rules::effective_percent( $option['rule'] ) );
 		}
 
 		if ( $best > 0 ) {

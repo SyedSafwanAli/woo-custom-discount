@@ -291,6 +291,15 @@ class Admin_Rules {
 		);
 
 		self::field(
+			__( 'Free with each one', 'woo-custom-discount' ),
+			sprintf(
+				'<input type="number" name="free_extras" class="small-text" min="0" step="1" value="%s">',
+				esc_attr( (string) $value( 'free_extras', 0 ) )
+			),
+			__( 'How many more the shopper takes home without paying. Buy one get one free is 1. The page then shows what that many would ordinarily cost, struck through, beside the one payment being asked for — one bottle at 5,295 reads as 10,590 down to 5,295, half off. No price in the catalogue is touched and the cart charges the single price, so sending the extras is yours to do.', 'woo-custom-discount' )
+		);
+
+		self::field(
 			__( 'Instead of the percentage', 'woo-custom-discount' ),
 			sprintf(
 				'<input type="text" name="badge" class="regular-text" value="%1$s" placeholder="%2$s">',
@@ -720,6 +729,7 @@ class Admin_Rules {
 			'display_label'     => isset( $_POST['display_label'] ) ? sanitize_text_field( wp_unslash( (string) $_POST['display_label'] ) ) : '',
 			'priority'          => isset( $_POST['priority'] ) ? (int) $_POST['priority'] : 10,
 			'badge'             => isset( $_POST['badge'] ) ? sanitize_text_field( wp_unslash( (string) $_POST['badge'] ) ) : '',
+			'free_extras'       => isset( $_POST['free_extras'] ) ? max( 0, (int) $_POST['free_extras'] ) : 0,
 			'discount_percent'  => isset( $_POST['discount_percent'] ) ? (float) $_POST['discount_percent'] : 0.0,
 			'countdown_enabled' => ! empty( $_POST['countdown_enabled'] ),
 			'enabled'           => ! empty( $_POST['enabled'] ),

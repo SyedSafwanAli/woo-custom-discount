@@ -431,8 +431,12 @@ class Variations {
 	 * @param \WC_Product $product Product it belongs to.
 	 */
 	public static function price_html( $html, $product ): string {
-		if ( ! $product instanceof \WC_Product || ! $product->is_type( 'variable' ) ) {
+		if ( ! $product instanceof \WC_Product ) {
 			return (string) $html;
+		}
+
+		if ( ! $product->is_type( 'variable' ) ) {
+			return self::offer_html( (string) $html, $product );
 		}
 
 		$product_id = $product->get_id();
@@ -504,20 +508,95 @@ class Variations {
 			return $data;
 		}
 
-		$badge = self::badge_for_slug( ( 'campaign' === $marker['kind'] ? 'wcd-c' : 'wcd-b' ) . $marker['id'] );
+		$rule = Rules::get( $marker['id'] );
 
-		// A discount already shows as a struck-through price beside a lower one,
-		// so repeating the percentage here would only say it twice.
-		if ( $badge === '' || (float) $variation->get_sale_price() > 0 ) {
+		if ( ! $rule ) {
 			return $data;
 		}
 
-		$data['price_html'] .= sprintf(
-			'<span class="wcd-offer">%s</span>',
-			esc_html( $badge )
-		);
+		$badge = self::badge_for_slug( ( 'campaign' === $marker['kind'] ? 'wcd-c' : 'wcd-b' ) . $marker['id'] );
+		$units = Rules::units( $rule );
+		$paid  = (float) $variation->get_price();
+
+		// An offer that hands over more than one shows what that many would
+		// ordinarily cost, struck through, beside the one payment being asked
+		// for. Nothing is written to the database: the variation keeps its own
+		// price, and the cart charges it.
+		if ( $units > 1 && $paid > 0 ) {
+			$data['price_html'] = '<span class="price">' . self::was_and_now( $paid * $units, $paid ) . '</span>';
+		} elseif ( (float) $variation->get_sale_price() > 0 ) {
+			// A plain discount already shows as a struck-through price beside a
+			// lower one, so repeating the percentage would only say it twice.
+			return $data;
+		}
+
+		if ( $badge !== '' ) {
+			$data['price_html'] .= sprintf(
+				'<span class="wcd-offer">%s</span>',
+				esc_html( $badge )
+			);
+		}
 
 		return $data;
+	}
+
+	/**
+	 * The same, for a product with nothing to choose between.
+	 *
+	 * A product carrying one offer and no second option never becomes variable,
+	 * so there is no list of choices and no row to read the offer off. Buy one
+	 * get one free takes nothing off the price it is sold at, so such a product
+	 * showed a bare figure and no sign at all that anything was on offer — which
+	 * is exactly how the shop found it.
+	 *
+	 * @param \WC_Product $product Product it belongs to.
+	 */
+	private static function offer_html( string $html, \WC_Product $product ): string {
+		$outcome = Resolver::resolve( $product->get_id() );
+
+		if ( $outcome === null ) {
+			return $html;
+		}
+
+		$rule = Rules::get( (int) $outcome['rule_id'] );
+
+		if ( ! $rule ) {
+			return $html;
+		}
+
+		$units = Rules::units( $rule );
+		$paid  = (float) $product->get_price();
+
+		if ( $units > 1 && $paid > 0 ) {
+			$html = self::was_and_now( $paid * $units, $paid );
+		}
+
+		$badge = self::badge_for_slug( ( Rules::TYPE_CAMPAIGN === $rule['type'] ? 'wcd-c' : 'wcd-b' ) . (int) $rule['id'] );
+
+		// Only where the price does not already tell the story on its own.
+		if ( $badge !== '' && ( $units > 1 || (float) $product->get_sale_price() <= 0 ) ) {
+			$html .= sprintf( '<span class="wcd-offer">%s</span>', esc_html( $badge ) );
+		}
+
+		return $html;
+	}
+
+	/**
+	 * A struck-through figure beside the one being charged.
+	 *
+	 * The shape WooCommerce uses for a sale price, so the theme's own styling
+	 * applies without a line of CSS, and a screen reader is told which is which
+	 * rather than reading two numbers in a row.
+	 */
+	private static function was_and_now( float $was, float $now ): string {
+		return '<del aria-hidden="true">' . wc_price( $was ) . '</del> '
+			. '<span class="screen-reader-text">'
+			. esc_html__( 'Original price was:', 'woo-custom-discount' ) . ' ' . wp_strip_all_tags( wc_price( $was ) )
+			. '</span> '
+			. '<ins aria-hidden="true">' . wc_price( $now ) . '</ins>'
+			. '<span class="screen-reader-text">'
+			. esc_html__( 'Current price is:', 'woo-custom-discount' ) . ' ' . wp_strip_all_tags( wc_price( $now ) )
+			. '</span>';
 	}
 
 	/**
@@ -1243,12 +1322,22 @@ class Variations {
 	 * Loads the swatch styling on a product page that needs it.
 	 */
 	public static function enqueue(): void {
-		if ( ! function_exists( 'is_product' ) || ! is_product() ) {
+		if ( ! function_exists( 'is_product' ) ) {
+			return;
+		}
+
+		// The offer beside a price is drawn wherever a price is, so the styles
+		// go out on the shop grid too. Only the product page has anything to
+		// choose between, which is all the script is for.
+		if ( ! is_product() && ! is_shop() && ! is_product_taxonomy() ) {
 			return;
 		}
 
 		wp_enqueue_style( 'wcd-variations', WCD_URL . 'assets/variations.css', array(), WCD_VERSION );
-		wp_enqueue_script( 'wcd-variations', WCD_URL . 'assets/variations.js', array( 'jquery' ), WCD_VERSION, true );
+
+		if ( is_product() ) {
+			wp_enqueue_script( 'wcd-variations', WCD_URL . 'assets/variations.js', array( 'jquery' ), WCD_VERSION, true );
+		}
 	}
 
 	/**
@@ -1334,10 +1423,9 @@ class Variations {
 	 *
 	 * An offer that takes nothing off the price has nothing to say here, and
 	 * "Buy One Get One Free" sat beside its full price with the column blank
-	 * while the row under it read "10% off". The shop writes the words itself
-	 * rather than having a figure worked out for it: the second bottle is not a
-	 * discount on the first, and printing "50% off" next to an unreduced price
-	 * would tell the shopper the price had already been halved.
+	 * while the row under it read "10% off". The shop can write the words
+	 * itself; failing that, what the offer comes to is worked out — free extras
+	 * included, so two for the price of one reads as the half price it is.
 	 */
 	private static function badge_for_slug( string $slug ): string {
 		$rule = self::rule_for_slug( $slug );
@@ -1352,7 +1440,7 @@ class Variations {
 			return $badge;
 		}
 
-		$percent = (float) $rule['discount_percent'];
+		$percent = Rules::effective_percent( $rule );
 
 		return $percent > 0
 			? sprintf(

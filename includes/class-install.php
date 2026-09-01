@@ -19,7 +19,7 @@ class Install {
 	/**
 	 * Bumped whenever the schema changes, so upgrades can run dbDelta again.
 	 */
-	public const DB_VERSION = 3;
+	public const DB_VERSION = 4;
 
 	/**
 	 * Table name without prefix => rules (campaigns and expiry batches).
@@ -110,6 +110,7 @@ class Install {
 			expiry_ym char(6) DEFAULT NULL,
 			display_label varchar(191) NOT NULL DEFAULT '',
 			badge varchar(191) NOT NULL DEFAULT '',
+			free_extras int(11) NOT NULL DEFAULT 0,
 			ends_at datetime DEFAULT NULL,
 			countdown_enabled tinyint(1) NOT NULL DEFAULT 0,
 			priority int(11) NOT NULL DEFAULT 10,
