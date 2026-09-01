@@ -228,6 +228,9 @@ class Variations {
 		// An offer that moves no price still has something to say up there.
 		add_filter( 'woocommerce_available_variation', array( __CLASS__, 'variation_data' ), 10, 3 );
 
+		// A picture given to an offer is the picture of what is being sold.
+		add_filter( 'woocommerce_product_get_image_id', array( __CLASS__, 'image_id' ), 10, 2 );
+
 		// Every sale takes one off the batch it came from.
 		add_action( 'woocommerce_variation_set_stock', array( __CLASS__, 'on_variation_stock' ) );
 
@@ -538,6 +541,82 @@ class Variations {
 		}
 
 		return $data;
+	}
+
+	/**
+	 * The picture the offer brought, in front of the product's own.
+	 *
+	 * A shop that photographs two bottles for a buy-one-get-one had that picture
+	 * shown only once a shopper picked that row — and on a product with nothing
+	 * to pick, never at all. What is on offer is what should be pictured, on the
+	 * shop grid as much as on the page.
+	 *
+	 * Variations are left alone: one already carries its own picture, and this
+	 * would put the first option's picture on every one of them.
+	 *
+	 * @param int|string  $image_id Attachment WooCommerce would have used.
+	 * @param \WC_Product $product  Product it belongs to.
+	 * @return int|string
+	 */
+	public static function image_id( $image_id, $product ) {
+		if ( ! $product instanceof \WC_Product || $product->is_type( 'variation' ) ) {
+			return $image_id;
+		}
+
+		$ours = self::offer_image_id( $product->get_id() );
+
+		return $ours > 0 ? $ours : $image_id;
+	}
+
+	/**
+	 * The picture belonging to the first offer on a product that has one.
+	 *
+	 * First in the order the shop set, so the row a shopper reads at the top is
+	 * the one the picture belongs to.
+	 */
+	private static function offer_image_id( int $product_id ): int {
+		static $seen = array();
+
+		if ( isset( $seen[ $product_id ] ) ) {
+			return $seen[ $product_id ];
+		}
+
+		$images = self::images_for( $product_id );
+
+		// Almost every product has none, and this is called for every product on
+		// the shop grid, so nothing further is looked up until one does.
+		if ( $images === array() ) {
+			$seen[ $product_id ] = 0;
+
+			return 0;
+		}
+
+		$options = self::options_for( $product_id );
+
+		// A product with a campaign and no batch has nothing to choose between,
+		// so it has no options — but it does have the one rule that reached it.
+		if ( $options === array() ) {
+			$outcome = Resolver::resolve( $product_id );
+			$rule    = $outcome === null ? null : Rules::get( (int) $outcome['rule_id'] );
+
+			$seen[ $product_id ] = $rule ? (int) ( $images[ (int) $rule['id'] ] ?? 0 ) : 0;
+
+			return $seen[ $product_id ];
+		}
+
+		foreach ( $options as $option ) {
+			$rule_id = (int) $option['rule']['id'];
+
+			if ( isset( $images[ $rule_id ] ) ) {
+				$seen[ $product_id ] = (int) $images[ $rule_id ];
+
+				return $seen[ $product_id ];
+			}
+		}
+
+		$seen[ $product_id ] = 0;
+
+		return 0;
 	}
 
 	/**
