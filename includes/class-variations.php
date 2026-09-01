@@ -438,6 +438,17 @@ class Variations {
 			return (string) $html;
 		}
 
+		// A variation is not a variable product, but it is not a plain one
+		// either, and it must not be treated as one. Its offer is settled in
+		// variation_data() from the rule its marker names; asking the resolver
+		// about a variation's own id instead answers with whatever covers the
+		// whole shop, since a rule scoped to every product matches any id put to
+		// it. That is how choosing "Buy One Get One Free" came to be labelled
+		// "10% off" as well.
+		if ( $product->is_type( 'variation' ) ) {
+			return (string) $html;
+		}
+
 		if ( ! $product->is_type( 'variable' ) ) {
 			return self::offer_html( (string) $html, $product );
 		}
